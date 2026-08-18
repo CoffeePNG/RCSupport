@@ -7,10 +7,12 @@ const body = commands.map((command) => command.data.toJSON());
 const rest = new REST().setToken(config.token);
 
 async function main() {
-  console.log(`Deploying ${body.length} guild slash commands...`);
-  await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
-    body,
-  });
+  for (const guildId of config.guildIds) {
+    console.log(`Deploying ${body.length} guild slash commands to ${guildId}...`);
+    await rest.put(Routes.applicationGuildCommands(config.clientId, guildId), {
+      body,
+    });
+  }
   console.log("Done.");
 }
 

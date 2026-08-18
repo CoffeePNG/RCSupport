@@ -170,19 +170,24 @@ it up in Discord. No changes to `ticketHandler.ts` or any command are needed.
    npm install
    ```
 2. Copy `.env.example` to `.env` and fill in `DISCORD_TOKEN`,
-   `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`.
+   `DISCORD_CLIENT_ID`, `DISCORD_GUILD_IDS` (comma-separated — one bot can run
+   in several guilds at once, e.g. a public server and a staff-only server).
 3. Register slash commands:
    ```
    npm run deploy-commands
    ```
+   Registers commands in every guild listed in `DISCORD_GUILD_IDS`.
 4. Run the bot:
    ```
    npm run dev
    ```
    or build and run compiled JS: `npm run build && npm start`.
 
-On first connect, the bot seeds the four default ticket types into SQLite for
-the configured guild (if they don't already exist). Then, in Discord:
+On connect (and again whenever it's added to a new server), the bot seeds the
+four default ticket types into SQLite for that guild (if they don't already
+exist). Every guild the bot is in gets its own independent ticket types,
+leads, panel, mod-log channel, and to-do list — nothing is shared across
+guilds. Then, in Discord (repeat per guild):
 
 1. `/ticket-config review-channel type:application channel:#staff-applications`
    (repeat per type)

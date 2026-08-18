@@ -12,8 +12,17 @@ const client = new Client({
 const commandsByName = new Map(commands.map((command) => [command.data.name, command]));
 
 client.once(Events.ClientReady, (readyClient) => {
-  seedDefaultTicketTypes(config.guildId);
-  console.log(`Logged in as ${readyClient.user.tag}`);
+  for (const guild of readyClient.guilds.cache.values()) {
+    seedDefaultTicketTypes(guild.id);
+  }
+  console.log(
+    `Logged in as ${readyClient.user.tag} — ${commands.length} commands loaded, serving ${readyClient.guilds.cache.size} guild(s)`
+  );
+});
+
+// Seed default ticket types the moment the bot joins a new guild, not just on the guilds it started with.
+client.on(Events.GuildCreate, (guild) => {
+  seedDefaultTicketTypes(guild.id);
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
