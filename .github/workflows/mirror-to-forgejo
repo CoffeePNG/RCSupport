@@ -1,0 +1,32 @@
+name: Mirror to Forgejo
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bare mirror clone from GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --mirror "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" repo-mirror
+
+      - name: Push mirror to Forgejo
+        env:
+          FORGEJO_URL: ${{ secrets.FORGEJO_URL }}
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd repo-mirror
+          AUTH_URL=$(printf '%s' "$FORGEJO_URL" | sed "s#https://#https://x-access-token:${FORGEJO_TOKEN}@#")
+          git push --mirror "$AUTH_URL"
