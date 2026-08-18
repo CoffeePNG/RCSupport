@@ -12,6 +12,8 @@ export function getGuildSettings(guildId: string): GuildSettings {
     panelMessageId: row ? row.panel_message_id : null,
     panelTitle: row ? row.panel_title : null,
     panelDescription: row ? row.panel_description : null,
+    todoPanelChannelId: row ? row.todo_panel_channel_id : null,
+    todoPanelMessageId: row ? row.todo_panel_message_id : null,
   };
 }
 
@@ -30,6 +32,16 @@ export function setPanelInfo(guildId: string, channelId: string, messageId: stri
      ON CONFLICT(guild_id) DO UPDATE SET
        panel_channel_id = excluded.panel_channel_id,
        panel_message_id = excluded.panel_message_id`
+  ).run(guildId, channelId, messageId);
+}
+
+export function setTodoPanelInfo(guildId: string, channelId: string, messageId: string): void {
+  db.prepare(
+    `INSERT INTO guild_settings (guild_id, todo_panel_channel_id, todo_panel_message_id)
+     VALUES (?, ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET
+       todo_panel_channel_id = excluded.todo_panel_channel_id,
+       todo_panel_message_id = excluded.todo_panel_message_id`
   ).run(guildId, channelId, messageId);
 }
 

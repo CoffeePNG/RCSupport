@@ -71,6 +71,21 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings (guild_id, user_id);
+
+  CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    assignee_id TEXT,
+    created_by TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    completed_by TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_todos_guild_status ON todos (guild_id, status);
+  CREATE INDEX IF NOT EXISTS idx_todos_guild_assignee ON todos (guild_id, assignee_id);
 `);
 
 function ensureColumn(table: string, column: string, definition: string): void {
@@ -86,3 +101,5 @@ ensureColumn("guild_settings", "panel_message_id", "TEXT");
 ensureColumn("guild_settings", "panel_title", "TEXT");
 ensureColumn("guild_settings", "panel_description", "TEXT");
 ensureColumn("ticket_configs", "option_description", "TEXT");
+ensureColumn("guild_settings", "todo_panel_channel_id", "TEXT");
+ensureColumn("guild_settings", "todo_panel_message_id", "TEXT");

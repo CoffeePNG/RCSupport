@@ -22,6 +22,30 @@ import {
   handleTicketCreateModal,
   handleTicketPanelSelect,
 } from "../handlers/ticketHandler";
+import {
+  TODO_ADD_BUTTON_ID,
+  TODO_ADD_MODAL_ID,
+  TODO_ASSIGN_BUTTON_ID,
+  TODO_ASSIGN_SELECT_ID,
+  TODO_ASSIGN_USER_PREFIX,
+  TODO_COMPLETE_BUTTON_ID,
+  TODO_COMPLETE_SELECT_ID,
+  TODO_REMOVE_BUTTON_ID,
+  TODO_REMOVE_SELECT_ID,
+  TODO_UNASSIGN_PREFIX,
+} from "../handlers/todoConstants";
+import {
+  handleTodoAddButton,
+  handleTodoAddModalSubmit,
+  handleTodoAssignButton,
+  handleTodoAssignSelect,
+  handleTodoAssignUserSelect,
+  handleTodoCompleteButton,
+  handleTodoCompleteSelect,
+  handleTodoRemoveButton,
+  handleTodoRemoveSelect,
+  handleTodoUnassignButton,
+} from "../handlers/todoHandler";
 
 export async function handleInteraction(
   interaction: Interaction,
@@ -49,6 +73,8 @@ export async function handleInteraction(
         await handleConfigEditModalSubmit(interaction);
       } else if (interaction.customId === PANEL_EDIT_MODAL_ID) {
         await handlePanelEditModalSubmit(interaction);
+      } else if (interaction.customId === TODO_ADD_MODAL_ID) {
+        await handleTodoAddModalSubmit(interaction);
       }
       return;
     }
@@ -56,6 +82,19 @@ export async function handleInteraction(
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === TICKET_PANEL_SELECT_ID) {
         await handleTicketPanelSelect(interaction);
+      } else if (interaction.customId === TODO_COMPLETE_SELECT_ID) {
+        await handleTodoCompleteSelect(interaction);
+      } else if (interaction.customId === TODO_REMOVE_SELECT_ID) {
+        await handleTodoRemoveSelect(interaction);
+      } else if (interaction.customId === TODO_ASSIGN_SELECT_ID) {
+        await handleTodoAssignSelect(interaction);
+      }
+      return;
+    }
+
+    if (interaction.isUserSelectMenu()) {
+      if (interaction.customId.startsWith(TODO_ASSIGN_USER_PREFIX)) {
+        await handleTodoAssignUserSelect(interaction);
       }
       return;
     }
@@ -69,6 +108,16 @@ export async function handleInteraction(
         await handleTicketCloseRequest(interaction);
       } else if (interaction.customId.startsWith(TICKET_CLAIM_PREFIX)) {
         await handleTicketClaim(interaction);
+      } else if (interaction.customId === TODO_ADD_BUTTON_ID) {
+        await handleTodoAddButton(interaction);
+      } else if (interaction.customId === TODO_COMPLETE_BUTTON_ID) {
+        await handleTodoCompleteButton(interaction);
+      } else if (interaction.customId === TODO_REMOVE_BUTTON_ID) {
+        await handleTodoRemoveButton(interaction);
+      } else if (interaction.customId === TODO_ASSIGN_BUTTON_ID) {
+        await handleTodoAssignButton(interaction);
+      } else if (interaction.customId.startsWith(TODO_UNASSIGN_PREFIX)) {
+        await handleTodoUnassignButton(interaction);
       }
       return;
     }
