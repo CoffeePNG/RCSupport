@@ -45,4 +45,20 @@ export interface GuildSettings {
   panelMessageId: string | null;
   panelTitle: string | null;
   panelDescription: string | null;
+  todoPanelChannelId: string | null;
+  todoPanelMessageId: string | null;
+}
+
+export type TodoStatus = "open" | "done";
+
+export interface Todo {
+  id: number;
+  guildId: string;
+  content: string;
+  assigneeId: string | null;
+  createdBy: string;
+  status: TodoStatus;
+  createdAt: number;
+  completedAt: number | null;
+  completedBy: string | null;
 }

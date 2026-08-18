@@ -110,6 +110,22 @@ staff team.") — falls back to `department` if not set.
   already posted, it's refreshed live immediately.
 - `/mod-config log-channel channel:<channel>` — set the moderation log
   channel.
+- `/todo-panel post channel:<channel>` — post the to-do list panel (embed +
+  **Add Task** / **Assign** / **Complete** / **Remove** buttons) in a channel.
+  Re-running it edits the existing panel message in place, same as
+  `/ticket-panel post` — the panel's channel/message ID is tracked in
+  `guild_settings`.
+
+**To-Do list**
+- **Add Task** button — anyone; opens a modal for the task text.
+- **Assign** button — anyone; pick an open task, then pick who it goes to (or
+  hit **Unassign**). No `Manage Server` requirement — teams self-organize.
+- **Complete** / **Remove** buttons — restricted to the task's creator, its
+  assignee, or a `Manage Server` holder.
+- The panel embed groups open tasks by assignee (plus an "Unassigned" group)
+  so a channel full of tasks stays scannable.
+- `/my-tasks` — anyone; ephemeral list of just the open tasks assigned to
+  you, for a personal view without scrolling the shared panel.
 
 **Moderation**
 - `/ban user reason? delete_message_days?` — requires `Ban Members`.
