@@ -16,7 +16,7 @@ client.once(Events.ClientReady, (readyClient) => {
     seedDefaultTicketTypes(guild.id);
   }
   console.log(
-    `Logged in as ${readyClient.user.tag} — ${commands.length} commands loaded, serving ${readyClient.guilds.cache.size} guild(s)`
+    `Logged in as ${readyClient.user.tag} — ${commands.length} commands loaded, serving ${readyClient.guilds.cache.size} guild(s) [deploy-test-2026-08-19a]`
   );
 });
 
