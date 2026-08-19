@@ -117,6 +117,10 @@ staff team.") — falls back to `department` if not set.
   `guild_settings`.
 
 **To-Do list**
+- `/task create description:<text> assignee:<user>?` — anyone; adds a task
+  directly (optionally pre-assigned) without touching the panel. Same effect
+  as the Add Task button, just without the modal — handy for quickly adding
+  and assigning in one step.
 - **Add Task** button — anyone; opens a modal for the task text.
 - **Assign** button — anyone; pick an open task, then pick who it goes to (or
   hit **Unassign**). No `Manage Server` requirement — teams self-organize.
