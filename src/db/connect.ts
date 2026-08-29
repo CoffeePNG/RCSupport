@@ -75,7 +75,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT NOT NULL,
-    content TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    content TEXT,
     assignee_id TEXT,
     created_by TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
@@ -103,3 +104,6 @@ ensureColumn("guild_settings", "panel_description", "TEXT");
 ensureColumn("ticket_configs", "option_description", "TEXT");
 ensureColumn("guild_settings", "todo_panel_channel_id", "TEXT");
 ensureColumn("guild_settings", "todo_panel_message_id", "TEXT");
+ensureColumn("todos", "title", "TEXT NOT NULL DEFAULT ''");
+
+db.exec(`UPDATE todos SET title = content, content = NULL WHERE title = ''`);

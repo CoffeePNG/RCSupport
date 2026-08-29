@@ -12,10 +12,13 @@ export const taskCommand: Command = {
         .setName("create")
         .setDescription("Add a task to the to-do list.")
         .addStringOption((opt) =>
+          opt.setName("title").setDescription("Short task title").setRequired(true).setMaxLength(100)
+        )
+        .addStringOption((opt) =>
           opt
             .setName("description")
-            .setDescription("What needs to get done")
-            .setRequired(true)
+            .setDescription("Additional details (optional)")
+            .setRequired(false)
             .setMaxLength(500)
         )
         .addUserOption((opt) =>
@@ -36,14 +39,15 @@ export const taskCommand: Command = {
     // Only one subcommand exists today; this guards cleanly once more are added.
     if (interaction.options.getSubcommand() !== "create") return;
 
-    const description = interaction.options.getString("description", true).trim();
-    if (!description) {
-      await interaction.reply({ content: "Task can't be empty.", flags: MessageFlags.Ephemeral });
+    const title = interaction.options.getString("title", true).trim();
+    if (!title) {
+      await interaction.reply({ content: "Task title can't be empty.", flags: MessageFlags.Ephemeral });
       return;
     }
+    const description = interaction.options.getString("description")?.trim() || null;
 
     const assignee = interaction.options.getUser("assignee");
-    const todo = createTodo(guildId, description, interaction.user.id);
+    const todo = createTodo(guildId, title, description, interaction.user.id);
     if (assignee) {
       assignTodo(todo.id, assignee.id);
     }

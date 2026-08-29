@@ -5,6 +5,7 @@ function rowToTodo(row: any): Todo {
   return {
     id: row.id,
     guildId: row.guild_id,
+    title: row.title,
     content: row.content,
     assigneeId: row.assignee_id,
     createdBy: row.created_by,
@@ -15,13 +16,18 @@ function rowToTodo(row: any): Todo {
   };
 }
 
-export function createTodo(guildId: string, content: string, createdBy: string): Todo {
+export function createTodo(
+  guildId: string,
+  title: string,
+  content: string | null,
+  createdBy: string
+): Todo {
   const info = db
     .prepare(
-      `INSERT INTO todos (guild_id, content, created_by, status, created_at)
-       VALUES (?, ?, ?, 'open', ?)`
+      `INSERT INTO todos (guild_id, title, content, created_by, status, created_at)
+       VALUES (?, ?, ?, ?, 'open', ?)`
     )
-    .run(guildId, content, createdBy, Date.now());
+    .run(guildId, title, content, createdBy, Date.now());
   return rowToTodo(db.prepare(`SELECT * FROM todos WHERE id = ?`).get(info.lastInsertRowid));
 }
 

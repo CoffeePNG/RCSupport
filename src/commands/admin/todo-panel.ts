@@ -3,6 +3,7 @@ import {
   ChatInputCommandInteraction,
   MessageFlags,
   PermissionFlagsBits,
+  PermissionsBitField,
   SlashCommandBuilder,
   TextChannel,
 } from "discord.js";
@@ -50,6 +51,25 @@ export const todoPanelCommand: Command = {
       return;
     }
 
+    const botMember = targetChannel.guild.members.me;
+    const botPermissions = targetChannel.permissionsFor(botMember ?? interaction.client.user.id);
+    const requiredPermissions = new PermissionsBitField([
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.EmbedLinks,
+    ]);
+    if (!botPermissions || !botPermissions.has(requiredPermissions)) {
+      const missing = requiredPermissions
+        .toArray()
+        .filter((perm) => !botPermissions?.has(perm))
+        .join(", ");
+      await interaction.reply({
+        content: `I don't have permission to post in <#${channelOption.id}>. Missing: ${missing}. Check the channel's permission overwrites for my role.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     const content = buildTodoPanelContent(guildId);
     const settings = getGuildSettings(guildId);
     let posted = null;
@@ -58,11 +78,19 @@ export const todoPanelCommand: Command = {
         .fetch(settings.todoPanelMessageId)
         .catch(() => null);
       if (existing) {
-        posted = await existing.edit({ embeds: [content.embed], components: [content.row] });
+        posted = await existing.edit({ embeds: [content.embed], components: [content.row] }).catch(() => null);
       }
     }
     if (!posted) {
-      posted = await targetChannel.send({ embeds: [content.embed], components: [content.row] });
+      try {
+        posted = await targetChannel.send({ embeds: [content.embed], components: [content.row] });
+      } catch (error) {
+        await interaction.reply({
+          content: `Failed to post the to-do panel in <#${channelOption.id}>: ${(error as Error).message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
     }
 
     setTodoPanelInfo(guildId, channelOption.id, posted.id);
