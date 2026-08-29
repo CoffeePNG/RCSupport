@@ -55,7 +55,7 @@ function buildTodoSelect(
     .setPlaceholder(placeholder)
     .addOptions(
       todos.map((t) => ({
-        label: truncateLabel(`#${t.id} ${t.content}`),
+        label: truncateLabel(`#${t.id} ${t.title}`),
         value: String(t.id),
       }))
     );
@@ -70,13 +70,14 @@ export async function handleTodoAddModalSubmit(interaction: ModalSubmitInteracti
   const guildId = interaction.guildId;
   if (!guildId) return;
 
-  const content = interaction.fields.getTextInputValue("content").trim();
-  if (!content) {
-    await interaction.reply({ content: "Task can't be empty.", flags: MessageFlags.Ephemeral });
+  const title = interaction.fields.getTextInputValue("title").trim();
+  const description = interaction.fields.getTextInputValue("description").trim();
+  if (!title) {
+    await interaction.reply({ content: "Task title can't be empty.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  createTodo(guildId, content, interaction.user.id);
+  createTodo(guildId, title, description || null, interaction.user.id);
   await refreshPostedTodoPanel(interaction.client, guildId);
 
   await interaction.reply({ content: "Task added.", flags: MessageFlags.Ephemeral });
@@ -203,7 +204,7 @@ export async function handleTodoAssignSelect(interaction: StringSelectMenuIntera
     .setDisabled(!todo.assigneeId);
 
   await interaction.update({
-    content: `Assign **#${todo.id} — ${todo.content}**`,
+    content: `Assign **#${todo.id} — ${todo.title}**`,
     components: [
       new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(userSelect),
       new ActionRowBuilder<ButtonBuilder>().addComponents(unassignButton),

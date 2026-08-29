@@ -54,7 +54,8 @@ export type TodoStatus = "open" | "done";
 export interface Todo {
   id: number;
   guildId: string;
-  content: string;
+  title: string;
+  content: string | null;
   assigneeId: string | null;
   createdBy: string;
   status: TodoStatus;

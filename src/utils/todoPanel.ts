@@ -18,7 +18,8 @@ export interface TodoPanelContent {
 }
 
 function formatTodoLine(todo: Todo): string {
-  return `\`#${todo.id}\` ${todo.content}`;
+  const header = `\`#${todo.id}\` **${todo.title}**`;
+  return todo.content ? `${header}\n${todo.content}` : header;
 }
 
 /** Builds the shared to-do panel: an embed grouping open tasks by assignee, plus action buttons. */
@@ -47,9 +48,11 @@ export function buildTodoPanelContent(guildId: string): TodoPanelContent {
       });
     }
     for (const [assigneeId, list] of byAssignee) {
+      // Embed field names don't resolve mentions, so the ping has to live in the value instead.
+      const value = `<@${assigneeId}>\n` + list.map(formatTodoLine).join("\n");
       fields.push({
-        name: `<@${assigneeId}>`,
-        value: list.map(formatTodoLine).join("\n").slice(0, FIELD_VALUE_LIMIT),
+        name: "Assigned",
+        value: value.slice(0, FIELD_VALUE_LIMIT),
       });
     }
 

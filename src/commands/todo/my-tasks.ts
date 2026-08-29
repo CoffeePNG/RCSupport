@@ -29,7 +29,12 @@ export const myTasksCommand: Command = {
     const embed = new EmbedBuilder()
       .setTitle("Your tasks")
       .setColor(0x5865f2)
-      .setDescription(todos.map((t) => `\`#${t.id}\` ${t.content}`).join("\n").slice(0, 4000))
+      .setDescription(
+        todos
+          .map((t) => (t.content ? `\`#${t.id}\` **${t.title}**\n${t.content}` : `\`#${t.id}\` **${t.title}**`))
+          .join("\n")
+          .slice(0, 4000)
+      )
       .setFooter({ text: `${todos.length} open task${todos.length === 1 ? "" : "s"}` });
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
