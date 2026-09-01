@@ -134,8 +134,9 @@ staff team.") — falls back to `department` if not set.
 **Channel transcripts**
 - `/archive duration? channel? limit?` — requires `Manage Messages`; pulls the
   channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
-  defaults to `24h`, max 90 days) and DMs you a `.txt` transcript with a summary
-  embed. Defaults to the channel you run it in. `limit` caps how many messages
+  defaults to `24h`, max 90 days) and DMs you the same thing a closed ticket
+  produces: an embed with an inline preview of the conversation plus the full
+  `.txt` transcript attached. Defaults to the channel you run it in. `limit` caps how many messages
   are included (default 1000, max 5000). You only get a transcript for channels
   you can already read, and the bot needs `View Channel` + `Read Message
   History` there. If your DMs are closed, the file comes back as an ephemeral

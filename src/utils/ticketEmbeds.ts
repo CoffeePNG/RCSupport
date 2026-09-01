@@ -12,8 +12,7 @@ import {
 } from "../handlers/ticketConstants";
 import { Ticket } from "../types/ticket";
 import { TicketTypeConfig } from "../types/ticket";
-
-const TRANSCRIPT_PREVIEW_LIMIT = 3800;
+import { buildTranscriptPreview } from "./transcript";
 
 function statusColor(status: Ticket["status"]): number {
   if (status === "claimed") return 0xfee75c;
@@ -102,15 +101,12 @@ export function buildTranscriptLogEmbed(
   ticketType: TicketTypeConfig,
   transcriptText: string
 ): EmbedBuilder {
-  const preview =
-    transcriptText.length > TRANSCRIPT_PREVIEW_LIMIT
-      ? `${transcriptText.slice(0, TRANSCRIPT_PREVIEW_LIMIT)}\n… *(truncated, see attached file for the full transcript)*`
-      : transcriptText;
+  const preview = buildTranscriptPreview(transcriptText);
 
   return new EmbedBuilder()
     .setTitle(`${ticketType.displayName} — Ticket #${ticket.id}`)
     .setColor(0x99aab5)
-    .setDescription(preview || "*(no messages)*")
+    .setDescription(preview)
     .addFields(
       { name: "Opened by", value: `<@${ticket.creatorId}>`, inline: true },
       {

@@ -9,7 +9,11 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 import { MAX_DURATION_MS, formatDuration, parseDuration } from "../../utils/duration";
-import { buildTranscriptAttachment, collectTranscript } from "../../utils/transcript";
+import {
+  buildTranscriptAttachment,
+  buildTranscriptPreview,
+  collectTranscript,
+} from "../../utils/transcript";
 import { Command } from "../types";
 
 const DEFAULT_DURATION = "24h";
@@ -170,11 +174,14 @@ export const archiveCommand: Command = {
     }
 
     const embed = new EmbedBuilder()
-      .setTitle(`Transcript: #${channel.name}`)
-      .setColor(0x5865f2)
+      .setTitle(`#${channel.name} — Channel Transcript`)
+      .setColor(0x99aab5)
+      .setDescription(buildTranscriptPreview(text))
       .addFields(
         { name: "Server", value: channel.guild.name, inline: true },
-        { name: "Requested window", value: formatDuration(durationMs), inline: true },
+        { name: "Channel", value: `<#${channel.id}>`, inline: true },
+        { name: "Requested by", value: `<@${interaction.user.id}>`, inline: true },
+        { name: "Window", value: formatDuration(durationMs), inline: true },
         { name: "Messages", value: String(result.messageCount), inline: true },
         {
           name: "Range",
@@ -186,7 +193,7 @@ export const archiveCommand: Command = {
               : "unknown",
         }
       )
-      .setFooter({ text: `Requested by ${interaction.user.tag}` })
+      .setFooter({ text: `#${channel.name} • ${channel.guild.name}` })
       .setTimestamp();
 
     if (notes.length > 0) {

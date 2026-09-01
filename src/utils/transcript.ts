@@ -25,6 +25,22 @@ export interface TranscriptResult {
 
 const FETCH_PAGE_SIZE = 100;
 
+/** Discord caps embed descriptions at 4096; leave room for the truncation notice. */
+export const TRANSCRIPT_PREVIEW_LIMIT = 3800;
+
+/**
+ * Trims a transcript down to something an embed description can hold.
+ * Kept as plain text (not a code block) so mentions still resolve.
+ */
+export function buildTranscriptPreview(text: string): string {
+  if (!text) return "*(no messages)*";
+  if (text.length <= TRANSCRIPT_PREVIEW_LIMIT) return text;
+  return `${text.slice(
+    0,
+    TRANSCRIPT_PREVIEW_LIMIT
+  )}\n… *(truncated, see attached file for the full transcript)*`;
+}
+
 function toLine(msg: Message): TranscriptLine {
   return {
     timestamp: msg.createdTimestamp,
