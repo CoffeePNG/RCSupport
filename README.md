@@ -131,6 +131,18 @@ staff team.") — falls back to `department` if not set.
 - `/my-tasks` — anyone; ephemeral list of just the open tasks assigned to
   you, for a personal view without scrolling the shared panel.
 
+**Channel transcripts**
+- `/archive duration? channel? limit?` — requires `Manage Messages`; pulls the
+  channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
+  defaults to `24h`, max 90 days) and DMs you a `.txt` transcript with a summary
+  embed. Defaults to the channel you run it in. `limit` caps how many messages
+  are included (default 1000, max 5000). You only get a transcript for channels
+  you can already read, and the bot needs `View Channel` + `Read Message
+  History` there. If your DMs are closed, the file comes back as an ephemeral
+  reply instead. Transcripts are files only, not hosted links: the bot has no
+  web host, and a public URL for a private channel's history is a leak waiting
+  to happen.
+
 **Moderation**
 - `/ban user reason? delete_message_days?` — requires `Ban Members`.
 - `/kick user reason?` — requires `Kick Members`.
