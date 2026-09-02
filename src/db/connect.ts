@@ -106,4 +106,54 @@ ensureColumn("guild_settings", "todo_panel_channel_id", "TEXT");
 ensureColumn("guild_settings", "todo_panel_message_id", "TEXT");
 ensureColumn("todos", "title", "TEXT NOT NULL DEFAULT ''");
 
-db.exec(`UPDATE todos SET title = content, content = NULL WHERE title = ''`);
+function columnIsNotNull(table: string, column: string): boolean {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string;
+    notnull: number;
+  }[];
+  return columns.some((c) => c.name === column && c.notnull === 1);
+}
+
+/**
+ * Databases created before task titles existed have `todos.content NOT NULL`.
+ * The title backfill below moves content into title and nulls content out,
+ * which that old constraint rejects. SQLite can't drop a NOT NULL in place,
+ * so rebuild the table with the current schema and copy the rows across.
+ */
+if (columnIsNotNull("todos", "content")) {
+  const rebuild = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE todos_migrate (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        content TEXT,
+        assignee_id TEXT,
+        created_by TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at INTEGER NOT NULL,
+        completed_at INTEGER,
+        completed_by TEXT
+      );
+
+      INSERT INTO todos_migrate (
+        id, guild_id, title, content, assignee_id,
+        created_by, status, created_at, completed_at, completed_by
+      )
+      SELECT
+        id, guild_id, title, content, assignee_id,
+        created_by, status, created_at, completed_at, completed_by
+      FROM todos;
+
+      DROP TABLE todos;
+      ALTER TABLE todos_migrate RENAME TO todos;
+
+      CREATE INDEX IF NOT EXISTS idx_todos_guild_status ON todos (guild_id, status);
+      CREATE INDEX IF NOT EXISTS idx_todos_guild_assignee ON todos (guild_id, assignee_id);
+    `);
+  });
+  rebuild();
+}
+
+// Old rows stored the task text in `content`; it belongs in `title` now.
+db.exec(`UPDATE todos SET title = content, content = NULL WHERE title = '' AND content IS NOT NULL`);
