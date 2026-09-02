@@ -12,6 +12,13 @@ export interface TranscriptOptions {
   limit?: number;
   /** Only include messages created at or after this epoch millisecond timestamp. */
   since?: number;
+  /**
+   * Collect forwards from this message ID instead of backwards from now.
+   * Exclusive of the message itself — pass `anchor` to include it.
+   */
+  after?: string;
+  /** Seeds the transcript, so an `after` run can include its own anchor message. */
+  anchor?: Message;
 }
 
 export interface TranscriptResult {
@@ -68,40 +75,77 @@ export async function collectTranscript(
   const limit = options.limit ?? 500;
   const since = options.since;
   const lines: TranscriptLine[] = [];
-  let before: string | undefined;
   let reachedWindowStart = false;
   let exhausted = false;
 
-  while (lines.length < limit) {
-    const batch: Collection<string, Message> = await channel.messages.fetch({
-      limit: FETCH_PAGE_SIZE,
-      before,
-    });
-    if (batch.size === 0) {
-      exhausted = true;
-      break;
-    }
+  if (options.anchor) {
+    lines.push(toLine(options.anchor));
+  }
 
-    let oldestId = before;
-    let oldestTimestamp = Number.POSITIVE_INFINITY;
-    for (const msg of batch.values()) {
-      if (msg.createdTimestamp < oldestTimestamp) {
-        oldestTimestamp = msg.createdTimestamp;
-        oldestId = msg.id;
+  if (options.after !== undefined) {
+    // Walk forwards from the anchor toward the newest message.
+    let after = options.after;
+    while (lines.length < limit) {
+      const batch: Collection<string, Message> = await channel.messages.fetch({
+        limit: FETCH_PAGE_SIZE,
+        after,
+      });
+      if (batch.size === 0) {
+        exhausted = true;
+        break;
       }
-      if (since !== undefined && msg.createdTimestamp < since) {
-        reachedWindowStart = true;
-        continue;
-      }
-      if (lines.length >= limit) break;
-      lines.push(toLine(msg));
-    }
 
-    before = oldestId;
-    if (reachedWindowStart) break;
-    if (batch.size < FETCH_PAGE_SIZE) {
-      exhausted = true;
-      break;
+      let newestId = after;
+      let newestTimestamp = Number.NEGATIVE_INFINITY;
+      for (const msg of batch.values()) {
+        if (msg.createdTimestamp > newestTimestamp) {
+          newestTimestamp = msg.createdTimestamp;
+          newestId = msg.id;
+        }
+        if (lines.length >= limit) continue;
+        lines.push(toLine(msg));
+      }
+
+      after = newestId;
+      if (batch.size < FETCH_PAGE_SIZE) {
+        exhausted = true;
+        break;
+      }
+    }
+  } else {
+    // Walk backwards from the newest message toward the window start.
+    let before: string | undefined;
+    while (lines.length < limit) {
+      const batch: Collection<string, Message> = await channel.messages.fetch({
+        limit: FETCH_PAGE_SIZE,
+        before,
+      });
+      if (batch.size === 0) {
+        exhausted = true;
+        break;
+      }
+
+      let oldestId = before;
+      let oldestTimestamp = Number.POSITIVE_INFINITY;
+      for (const msg of batch.values()) {
+        if (msg.createdTimestamp < oldestTimestamp) {
+          oldestTimestamp = msg.createdTimestamp;
+          oldestId = msg.id;
+        }
+        if (since !== undefined && msg.createdTimestamp < since) {
+          reachedWindowStart = true;
+          continue;
+        }
+        if (lines.length >= limit) break;
+        lines.push(toLine(msg));
+      }
+
+      before = oldestId;
+      if (reachedWindowStart) break;
+      if (batch.size < FETCH_PAGE_SIZE) {
+        exhausted = true;
+        break;
+      }
     }
   }
 

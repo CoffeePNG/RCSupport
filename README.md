@@ -132,12 +132,17 @@ staff team.") — falls back to `department` if not set.
   you, for a personal view without scrolling the shared panel.
 
 **Channel transcripts**
-- `/archive duration? channel? limit?` — requires `Manage Messages`; pulls the
-  channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
+- `/archive duration? from? channel? limit?` — requires `Manage Messages`; pulls
+  the channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
   defaults to `24h`, max 90 days) and DMs you the same thing a closed ticket
   produces: an embed with an inline preview of the conversation plus the full
   `.txt` transcript attached. Defaults to the channel you run it in. `limit` caps how many messages
-  are included (default 1000, max 5000). You only get a transcript for channels
+  are included (default 1000, max 5000). `from` takes a message link (right-click
+  a message → **Copy Message Link**) or a raw message ID and transcripts that
+  message onwards to the newest one, instead of looking back by time — use it
+  for "everything since this happened". A link supplies its own channel, so
+  `channel` is redundant with one and conflicting values are rejected. `from`
+  and `duration` are mutually exclusive. You only get a transcript for channels
   you can already read, and the bot needs `View Channel` + `Read Message
   History` there. If your DMs are closed, the file comes back as an ephemeral
   reply instead. Transcripts are files only, not hosted links: the bot has no
