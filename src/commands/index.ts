@@ -4,7 +4,7 @@ import { staffAssignCommand } from "./admin/staff-assign";
 import { staffStatusCommand } from "./admin/staff-status";
 import { ticketConfigCommand } from "./admin/ticket-config";
 import { ticketPanelCommand } from "./admin/ticket-panel";
-import { archiveCommand } from "./admin/archive";
+import { archiveCommand } from "./utility/archive";
 import { modConfigCommand } from "./admin/mod-config";
 import { todoPanelCommand } from "./admin/todo-panel";
 import { banCommand } from "./moderation/ban";

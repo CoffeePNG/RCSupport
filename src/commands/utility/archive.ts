@@ -2,6 +2,7 @@ import {
   ChannelType,
   ChatInputCommandInteraction,
   EmbedBuilder,
+  GuildMember,
   GuildTextBasedChannel,
   MessageFlags,
   PermissionFlagsBits,
@@ -41,7 +42,6 @@ export const archiveCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("archive")
     .setDescription("Send yourself a transcript of a channel's recent messages.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .setDMPermission(false)
     .addStringOption((opt) =>
       opt
@@ -156,8 +156,14 @@ export const archiveCommand: Command = {
       PermissionFlagsBits.ReadMessageHistory,
     ]);
 
-    // The requester must already be able to read the channel themselves.
-    const memberPermissions = channel.permissionsFor(interaction.user.id);
+    // Anyone may archive, so the only gate is the requester's own access to the
+    // channel. Resolve the member rather than trusting the cache: an uncached
+    // member would otherwise read as "no access".
+    const member =
+      interaction.member instanceof GuildMember
+        ? interaction.member
+        : await channel.guild.members.fetch(interaction.user.id).catch(() => null);
+    const memberPermissions = member && channel.permissionsFor(member);
     if (!memberPermissions?.has(required)) {
       await interaction.reply({
         content: "You don't have access to that channel.",
