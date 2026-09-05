@@ -1,6 +1,13 @@
 import { db } from "./connect";
 import { GuildSettings } from "../types/ticket";
 
+/**
+ * Archive logging is three-state: a channel, unset (fall back to the mod-log
+ * channel), or off. The off state rides in the channel column as a sentinel,
+ * which never escapes this module: callers see a channel ID or a boolean.
+ */
+const ARCHIVE_LOG_OFF = "off";
+
 export function getGuildSettings(guildId: string): GuildSettings {
   const row = db
     .prepare(`SELECT * FROM guild_settings WHERE guild_id = ?`)
@@ -14,7 +21,21 @@ export function getGuildSettings(guildId: string): GuildSettings {
     panelDescription: row ? row.panel_description : null,
     todoPanelChannelId: row ? row.todo_panel_channel_id : null,
     todoPanelMessageId: row ? row.todo_panel_message_id : null,
+    archiveLogChannelId:
+      row && row.archive_log_channel_id !== ARCHIVE_LOG_OFF
+        ? row.archive_log_channel_id
+        : null,
+    archiveLogDisabled: !!row && row.archive_log_channel_id === ARCHIVE_LOG_OFF,
   };
+}
+
+/** Pass null to turn archive logging off; it stops falling back to the mod-log channel. */
+export function setArchiveLogChannel(guildId: string, channelId: string | null): void {
+  db.prepare(
+    `INSERT INTO guild_settings (guild_id, archive_log_channel_id)
+     VALUES (?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET archive_log_channel_id = excluded.archive_log_channel_id`
+  ).run(guildId, channelId ?? ARCHIVE_LOG_OFF);
 }
 
 export function setModLogChannel(guildId: string, channelId: string): void {

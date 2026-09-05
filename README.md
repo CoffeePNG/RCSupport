@@ -110,6 +110,11 @@ staff team.") — falls back to `department` if not set.
   already posted, it's refreshed live immediately.
 - `/mod-config log-channel channel:<channel>` — set the moderation log
   channel.
+- `/mod-config archive-log channel:<channel>` — set the channel `/archive`
+  exports are logged to. With no options it reports where they go today; with
+  `disable:true` it stops logging them. Unset, exports are logged to the
+  mod-log channel, so a guild with a mod-log gets a paper trail without
+  configuring anything.
 - `/todo-panel post channel:<channel>` — post the to-do list panel (embed +
   **Add Task** / **Assign** / **Complete** / **Remove** buttons) in a channel.
   Re-running it edits the existing panel message in place, same as
@@ -152,6 +157,12 @@ staff team.") — falls back to `department` if not set.
   reply instead. Transcripts are files only, not hosted links: the bot has no
   web host, and a public URL for a private channel's history is a leak waiting
   to happen.
+- Every completed export is logged to the archive-log channel (or the mod-log
+  channel if none is set): who ran it, which channel, the window, how many
+  messages, and whether it went out by DM. Metadata only, never the transcript
+  itself, since the log channel's audience is not the requester. Anyone who can
+  read a channel can export it, so the log is what makes that accountable.
+  `/mod-config archive-log disable:true` turns it off.
 
 **Moderation**
 - `/ban user reason? delete_message_days?` — requires `Ban Members`.
@@ -226,7 +237,9 @@ guilds. Then, in Discord (repeat per guild):
    (repeat per type)
 2. `/staff-assign type:application action:add user:@SomeLead` (repeat per
    type/lead)
-3. `/mod-config log-channel channel:#mod-log`
+3. `/mod-config log-channel channel:#mod-log`, and optionally
+   `/mod-config archive-log channel:#archive-log` to split `/archive` exports
+   out of the mod-log
 4. `/ticket-panel post channel:#create-a-ticket` (optional — gives members a
    dropdown instead of needing to know the slash command)
 

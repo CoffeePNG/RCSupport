@@ -47,6 +47,10 @@ export interface GuildSettings {
   panelDescription: string | null;
   todoPanelChannelId: string | null;
   todoPanelMessageId: string | null;
+  /** Where /archive exports are logged. Null falls back to the mod-log channel. */
+  archiveLogChannelId: string | null;
+  /** Set when archive logging is turned off outright, rather than just unset. */
+  archiveLogDisabled: boolean;
 }
 
 export type TodoStatus = "open" | "done";

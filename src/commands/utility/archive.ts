@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import { config } from "../../config";
 import { MAX_DURATION_MS, formatDuration, parseDuration } from "../../utils/duration";
+import { postArchiveLog } from "../../utils/logger";
 import { parseMessageReference } from "../../utils/messageLink";
 import {
   buildTranscriptAttachment,
@@ -282,13 +283,16 @@ export const archiveCommand: Command = {
       embed.addFields({ name: "Notes", value: notes.join("\n") });
     }
 
+    let delivery: string;
     try {
       await interaction.user.send({ embeds: [embed], files: [attachment] });
+      delivery = "DM";
       await interaction.editReply({
         content: `Sent you a transcript of ${channel} covering ${windowLabel} (${result.messageCount} messages).`,
       });
     } catch {
       // DMs are closed: fall back to the ephemeral reply, which only the requester sees.
+      delivery = "ephemeral reply (DMs closed)";
       await interaction.editReply({
         content:
           "I couldn't DM you (your direct messages are closed), so here's the transcript instead.",
@@ -296,5 +300,35 @@ export const archiveCommand: Command = {
         files: [buildTranscriptAttachment(text, fileName)],
       });
     }
+
+    // The export happened either way, so it gets logged either way. Metadata
+    // only: the transcript went to one person, and copying it into a staff
+    // channel would leak the history this command is careful about.
+    const logEmbed = new EmbedBuilder()
+      .setTitle("Channel Archived")
+      .setColor(0x99aab5)
+      .addFields(
+        { name: "Channel", value: `<#${channel.id}>`, inline: true },
+        { name: "Archived by", value: `<@${interaction.user.id}>`, inline: true },
+        { name: "Messages", value: String(result.messageCount), inline: true },
+        {
+          name: "Window",
+          value: anchor
+            ? `[from this message](${anchor.url})`
+            : `last ${formatDuration(durationMs)}`,
+          inline: true,
+        },
+        { name: "Delivered by", value: delivery, inline: true }
+      )
+      .setFooter({ text: `#${channel.name}` })
+      .setTimestamp();
+
+    if (notes.length > 0) {
+      logEmbed.addFields({ name: "Notes", value: notes.join("\n") });
+    }
+
+    // A log channel that's gone or unwritable is not the requester's problem:
+    // they already have their transcript.
+    await postArchiveLog(interaction.client, channel.guildId, logEmbed).catch(() => {});
   },
 };
