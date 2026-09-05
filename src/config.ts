@@ -41,5 +41,7 @@ export const config = {
   clientId: requireEnv("DISCORD_CLIENT_ID"),
   guildIds: requireGuildIds(),
   archiveGuildIds: archiveGuildIds(),
+  /** Register slash commands on boot. Set to "false" to leave it to the CLI script. */
+  deployCommandsOnStart: process.env.DEPLOY_COMMANDS_ON_START !== "false",
   databasePath: process.env.DATABASE_PATH || "data/rcbot.sqlite",
 };

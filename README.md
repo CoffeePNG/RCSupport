@@ -198,14 +198,18 @@ it up in Discord. No changes to `ticketHandler.ts` or any command are needed.
 2. Copy `.env.example` to `.env` and fill in `DISCORD_TOKEN`,
    `DISCORD_CLIENT_ID`, `DISCORD_GUILD_IDS` (comma-separated — one bot can run
    in several guilds at once, e.g. a public server and a staff-only server).
-3. Register slash commands:
+3. Register slash commands. The bot does this itself on every boot, so on a
+   host with no shell (Pterodactyl, most panel hosts) there is nothing to run:
+   restart it and the commands match the running code. To register by hand:
    ```
    npm run deploy-commands
    ```
-   Registers commands in every guild listed in `DISCORD_GUILD_IDS`. Commands
-   pinned to specific guilds (see `ARCHIVE_GUILD_IDS`) are skipped everywhere
-   else, and each guild's set is replaced wholesale, so unpinning a command
-   removes it from the guilds it no longer belongs to.
+   Either path registers commands in every guild listed in `DISCORD_GUILD_IDS`.
+   Commands pinned to specific guilds (see `ARCHIVE_GUILD_IDS`) are skipped
+   everywhere else, and each guild's set is replaced wholesale, so unpinning a
+   command removes it from the guilds it no longer belongs to. Set
+   `DEPLOY_COMMANDS_ON_START=false` if you would rather only ever register with
+   the script.
 4. Run the bot:
    ```
    npm run dev
