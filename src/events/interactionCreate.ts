@@ -55,6 +55,19 @@ export async function handleInteraction(
     if (interaction.isChatInputCommand()) {
       const command = commandsByName.get(interaction.commandName);
       if (!command) return;
+      // Registration is the first gate, this is the one that can't go stale:
+      // a leftover registration in a guild the command was pinned away from
+      // still lands here, and gets refused.
+      const pinnedElsewhere =
+        command.guildIds &&
+        (!interaction.guildId || !command.guildIds.includes(interaction.guildId));
+      if (pinnedElsewhere) {
+        await interaction.reply({
+          content: "That command isn't available in this server.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
       await command.execute(interaction);
       return;
     }

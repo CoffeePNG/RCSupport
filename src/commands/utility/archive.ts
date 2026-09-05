@@ -9,6 +9,7 @@ import {
   PermissionsBitField,
   SlashCommandBuilder,
 } from "discord.js";
+import { config } from "../../config";
 import { MAX_DURATION_MS, formatDuration, parseDuration } from "../../utils/duration";
 import { parseMessageReference } from "../../utils/messageLink";
 import {
@@ -39,6 +40,8 @@ function slugify(name: string): string {
 }
 
 export const archiveCommand: Command = {
+  guildIds: config.archiveGuildIds,
+
   data: new SlashCommandBuilder()
     .setName("archive")
     .setDescription("Send yourself a transcript of a channel's recent messages.")

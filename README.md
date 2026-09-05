@@ -132,7 +132,8 @@ staff team.") — falls back to `department` if not set.
   you, for a personal view without scrolling the shared panel.
 
 **Channel transcripts**
-- `/archive duration? from? channel? limit?` — anyone; pulls
+- `/archive duration? from? channel? limit?` — anyone, in the guilds listed in
+  `ARCHIVE_GUILD_IDS` (defaults to `903819888903200798`); pulls
   the channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
   defaults to `24h`, max 90 days) and DMs you the same thing a closed ticket
   produces: an embed with an inline preview of the conversation plus the full
@@ -142,8 +143,10 @@ staff team.") — falls back to `department` if not set.
   message onwards to the newest one, instead of looking back by time — use it
   for "everything since this happened". A link supplies its own channel, so
   `channel` is redundant with one and conflicting values are rejected. `from`
-  and `duration` are mutually exclusive. There is no role gate: access to the
-  channel *is* the permission. You only get a transcript for channels you can
+  and `duration` are mutually exclusive. There is no role gate inside the
+  allowed guilds: access to the channel *is* the permission. Elsewhere the
+  command isn't registered at all, and a stale registration is refused at
+  runtime rather than trusted. You only get a transcript for channels you can
   already read, and the bot needs `View Channel` + `Read Message
   History` there. If your DMs are closed, the file comes back as an ephemeral
   reply instead. Transcripts are files only, not hosted links: the bot has no
@@ -199,7 +202,10 @@ it up in Discord. No changes to `ticketHandler.ts` or any command are needed.
    ```
    npm run deploy-commands
    ```
-   Registers commands in every guild listed in `DISCORD_GUILD_IDS`.
+   Registers commands in every guild listed in `DISCORD_GUILD_IDS`. Commands
+   pinned to specific guilds (see `ARCHIVE_GUILD_IDS`) are skipped everywhere
+   else, and each guild's set is replaced wholesale, so unpinning a command
+   removes it from the guilds it no longer belongs to.
 4. Run the bot:
    ```
    npm run dev
