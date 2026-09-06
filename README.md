@@ -131,8 +131,12 @@ staff team.") — falls back to `department` if not set.
   hit **Unassign**). No `Manage Server` requirement — teams self-organize.
 - **Complete** / **Remove** buttons — restricted to the task's creator, its
   assignee, or a `Manage Server` holder.
-- The panel embed groups open tasks by assignee (plus an "Unassigned" group)
-  so a channel full of tasks stays scannable.
+- The panel embed groups open tasks by assignee (plus an "Unassigned" group);
+  within a group, tasks are separated by a divider line so a busy list stays
+  scannable instead of reading as one block of text.
+- `/todo` — anyone; ephemeral copy of the full shared board (same grouping
+  and buttons as the panel), for whenever you don't want to jump to the
+  channel it's posted in.
 - `/my-tasks` — anyone; ephemeral list of just the open tasks assigned to
   you, for a personal view without scrolling the shared panel.
 
