@@ -15,6 +15,7 @@ import { unwarnCommand } from "./moderation/unwarn";
 import { warningsCommand } from "./moderation/warnings";
 import { myTasksCommand } from "./todo/my-tasks";
 import { taskCommand } from "./todo/task";
+import { todoCommand } from "./todo/todo";
 
 export const commands: Command[] = [
   ticketCreateCommand,
@@ -33,4 +34,5 @@ export const commands: Command[] = [
   warningsCommand,
   myTasksCommand,
   taskCommand,
+  todoCommand,
 ];

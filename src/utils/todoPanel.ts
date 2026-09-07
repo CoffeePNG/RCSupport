@@ -12,12 +12,15 @@ import {
 const MAX_FIELDS = 25;
 const FIELD_VALUE_LIMIT = 1024;
 
+/** Visual separator between stacked tasks so a busy field doesn't read as one wall of text. */
+export const TASK_DIVIDER = "\n──────────\n";
+
 export interface TodoPanelContent {
   embed: EmbedBuilder;
   row: ActionRowBuilder<ButtonBuilder>;
 }
 
-function formatTodoLine(todo: Todo): string {
+export function formatTodoLine(todo: Todo): string {
   const header = `\`#${todo.id}\` **${todo.title}**`;
   return todo.content ? `${header}\n${todo.content}` : header;
 }
@@ -44,12 +47,12 @@ export function buildTodoPanelContent(guildId: string): TodoPanelContent {
     if (unassigned.length > 0) {
       fields.push({
         name: "Unassigned",
-        value: unassigned.map(formatTodoLine).join("\n").slice(0, FIELD_VALUE_LIMIT),
+        value: unassigned.map(formatTodoLine).join(TASK_DIVIDER).slice(0, FIELD_VALUE_LIMIT),
       });
     }
     for (const [assigneeId, list] of byAssignee) {
       // Embed field names don't resolve mentions, so the ping has to live in the value instead.
-      const value = `<@${assigneeId}>\n` + list.map(formatTodoLine).join("\n");
+      const value = `<@${assigneeId}>\n` + list.map(formatTodoLine).join(TASK_DIVIDER);
       fields.push({
         name: "Assigned",
         value: value.slice(0, FIELD_VALUE_LIMIT),
