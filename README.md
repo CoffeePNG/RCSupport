@@ -176,11 +176,18 @@ staff team.") — falls back to `department` if not set.
 - `/warn user reason` — requires `Moderate Members`; persisted in SQLite.
 - `/unwarn warning_id` — clears (soft-deletes) a warning.
 - `/warnings user` — lists a user's active warnings.
-- `/purge amount` — requires `Manage Messages`; bulk-deletes up to 5000 of the
-  most recent messages in the channel it's run in (batches of 100 per
-  Discord's bulk-delete endpoint). Stops early if it hits messages older than
-  14 days, since Discord's bulk-delete won't touch those regardless of
-  permissions.
+- `/purge` — requires `Manage Messages`; bulk-deletes in the channel it's run
+  in, batching through Discord's 100-message-per-call bulk-delete endpoint.
+  Always stops early if it hits messages older than 14 days, since Discord's
+  bulk-delete won't touch those regardless of permissions.
+  - `/purge any amount` — deletes the most recent `amount` messages (max 5000),
+    no filtering.
+  - `/purge user target amount` — deletes up to `amount` messages from `target`,
+    searching back up to 5000 messages to find them.
+  - `/purge bots amount` — same as `user`, but matches any bot's messages.
+  - `/purge after message` — deletes everything after the given message link
+    or ID (exclusive), up to 5000 messages. No `amount`; it just goes until it
+    runs out of newer messages or hits the search cap.
 
 All moderation actions that succeed are logged as an embed to the channel set
 via `/mod-config log-channel`, if configured.
