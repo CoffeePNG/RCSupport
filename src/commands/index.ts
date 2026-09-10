@@ -9,6 +9,7 @@ import { modConfigCommand } from "./admin/mod-config";
 import { todoPanelCommand } from "./admin/todo-panel";
 import { banCommand } from "./moderation/ban";
 import { kickCommand } from "./moderation/kick";
+import { purgeCommand } from "./moderation/purge";
 import { timeoutCommand } from "./moderation/timeout";
 import { warnCommand } from "./moderation/warn";
 import { unwarnCommand } from "./moderation/unwarn";
@@ -28,6 +29,7 @@ export const commands: Command[] = [
   todoPanelCommand,
   banCommand,
   kickCommand,
+  purgeCommand,
   timeoutCommand,
   warnCommand,
   unwarnCommand,

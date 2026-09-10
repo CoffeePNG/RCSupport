@@ -14,8 +14,8 @@ import { MAX_DURATION_MS, formatDuration, parseDuration } from "../../utils/dura
 import { postArchiveLog } from "../../utils/logger";
 import { parseMessageReference } from "../../utils/messageLink";
 import {
+  buildParticipantsSummary,
   buildTranscriptAttachment,
-  buildTranscriptPreview,
   collectTranscript,
 } from "../../utils/transcript";
 import { Command } from "../types";
@@ -253,7 +253,7 @@ export const archiveCommand: Command = {
     const embed = new EmbedBuilder()
       .setTitle(`#${channel.name} — Channel Transcript`)
       .setColor(0x99aab5)
-      .setDescription(buildTranscriptPreview(text))
+      .setDescription("Full message content is in the attached file, not shown here.")
       .addFields(
         { name: "Server", value: channel.guild.name, inline: true },
         { name: "Channel", value: `<#${channel.id}>`, inline: true },
@@ -274,7 +274,9 @@ export const archiveCommand: Command = {
                   result.newestTimestamp / 1000
                 )}:f>`
               : "unknown",
-        }
+          inline: true,
+        },
+        { name: "Participants", value: buildParticipantsSummary(result.participants) }
       )
       .setFooter({ text: `#${channel.name} • ${channel.guild.name}` })
       .setTimestamp();

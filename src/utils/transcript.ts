@@ -2,9 +2,16 @@ import { AttachmentBuilder, Collection, GuildTextBasedChannel, Message } from "d
 
 interface TranscriptLine {
   timestamp: number;
+  authorId: string;
   tag: string;
   content: string;
   attachments: string;
+}
+
+export interface TranscriptParticipant {
+  id: string;
+  tag: string;
+  count: number;
 }
 
 export interface TranscriptOptions {
@@ -28,6 +35,8 @@ export interface TranscriptResult {
   newestTimestamp?: number;
   /** True when the limit was hit before reaching the requested time window. */
   truncated: boolean;
+  /** Unique authors in the transcript, sorted by message count descending. */
+  participants: TranscriptParticipant[];
 }
 
 const FETCH_PAGE_SIZE = 100;
@@ -51,10 +60,54 @@ export function buildTranscriptPreview(text: string): string {
 function toLine(msg: Message): TranscriptLine {
   return {
     timestamp: msg.createdTimestamp,
+    authorId: msg.author.id,
     tag: msg.author.tag,
     content: msg.content,
     attachments: msg.attachments.map((a) => a.url).join(" "),
   };
+}
+
+function tallyParticipants(lines: TranscriptLine[]): TranscriptParticipant[] {
+  const counts = new Map<string, TranscriptParticipant>();
+  for (const line of lines) {
+    const existing = counts.get(line.authorId);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(line.authorId, { id: line.authorId, tag: line.tag, count: 1 });
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
+/**
+ * Renders participants as "@mention — N messages" lines, trimmed to fit a
+ * Discord embed field (1024 chars) without cutting a line in half.
+ */
+export function buildParticipantsSummary(participants: TranscriptParticipant[]): string {
+  if (participants.length === 0) return "*(no messages)*";
+
+  const FIELD_LIMIT = 1024;
+  const allLines = participants.map(
+    (p) => `<@${p.id}> — ${p.count} message${p.count === 1 ? "" : "s"}`
+  );
+  const full = allLines.join("\n");
+  if (full.length <= FIELD_LIMIT) return full;
+
+  const shown: string[] = [];
+  let length = 0;
+  for (const line of allLines) {
+    const hidden = allLines.length - shown.length;
+    const footer = `\n*(+${hidden} more)*`;
+    const addition = (shown.length > 0 ? 1 : 0) + line.length;
+    if (length + addition + footer.length > FIELD_LIMIT) break;
+    shown.push(line);
+    length += addition;
+  }
+
+  const hiddenCount = allLines.length - shown.length;
+  const footer = `*(+${hiddenCount} more)*`;
+  return shown.length > 0 ? `${shown.join("\n")}\n${footer}` : footer;
 }
 
 function formatLines(lines: TranscriptLine[]): string {
@@ -157,6 +210,7 @@ export async function collectTranscript(
     oldestTimestamp: lines[0]?.timestamp,
     newestTimestamp: lines[lines.length - 1]?.timestamp,
     truncated: lines.length >= limit && !reachedWindowStart && !exhausted,
+    participants: tallyParticipants(lines),
   };
 }
 

@@ -144,9 +144,10 @@ staff team.") — falls back to `department` if not set.
 - `/archive duration? from? channel? limit?` — anyone, in the guilds listed in
   `ARCHIVE_GUILD_IDS` (defaults to `903819888903200798`); pulls
   the channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
-  defaults to `24h`, max 90 days) and DMs you the same thing a closed ticket
-  produces: an embed with an inline preview of the conversation plus the full
-  `.txt` transcript attached. Defaults to the channel you run it in. `limit` caps how many messages
+  defaults to `24h`, max 90 days) and DMs you an embed summarizing who talked,
+  when, and in which channel, plus the full `.txt` transcript attached — the
+  embed itself doesn't quote any message content, since the point is a quick
+  summary, not a second place to read the conversation. Defaults to the channel you run it in. `limit` caps how many messages
   are included (default 1000, max 5000). `from` takes a message link (right-click
   a message → **Copy Message Link**) or a raw message ID and transcripts that
   message onwards to the newest one, instead of looking back by time — use it
@@ -175,6 +176,11 @@ staff team.") — falls back to `department` if not set.
 - `/warn user reason` — requires `Moderate Members`; persisted in SQLite.
 - `/unwarn warning_id` — clears (soft-deletes) a warning.
 - `/warnings user` — lists a user's active warnings.
+- `/purge amount` — requires `Manage Messages`; bulk-deletes up to 5000 of the
+  most recent messages in the channel it's run in (batches of 100 per
+  Discord's bulk-delete endpoint). Stops early if it hits messages older than
+  14 days, since Discord's bulk-delete won't touch those regardless of
+  permissions.
 
 All moderation actions that succeed are logged as an embed to the channel set
 via `/mod-config log-channel`, if configured.
