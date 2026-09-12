@@ -1,5 +1,8 @@
 import { Interaction, MessageFlags } from "discord.js";
 import { Command } from "../commands/types";
+import { BUGTHREAD_BUTTON_ID, BUGTHREAD_MODAL_ID } from "../commands/admin/bugreport";
+import { openBugModal, submitBugModal } from "../rcsupport/panel";
+import { RCSupportForum } from "../rcsupport/forum";
 import {
   CONFIG_EDIT_MODAL_PREFIX,
   PANEL_EDIT_MODAL_ID,
@@ -49,7 +52,8 @@ import {
 
 export async function handleInteraction(
   interaction: Interaction,
-  commandsByName: Map<string, Command>
+  commandsByName: Map<string, Command>,
+  rcForum?: RCSupportForum
 ) {
   try {
     if (interaction.isChatInputCommand()) {
@@ -80,7 +84,9 @@ export async function handleInteraction(
     }
 
     if (interaction.isModalSubmit()) {
-      if (interaction.customId.startsWith(TICKET_CREATE_MODAL_PREFIX)) {
+      if (interaction.customId === BUGTHREAD_MODAL_ID && rcForum) {
+        await submitBugModal(interaction, rcForum);
+      } else if (interaction.customId.startsWith(TICKET_CREATE_MODAL_PREFIX)) {
         await handleTicketCreateModal(interaction);
       } else if (interaction.customId.startsWith(CONFIG_EDIT_MODAL_PREFIX)) {
         await handleConfigEditModalSubmit(interaction);
@@ -113,7 +119,9 @@ export async function handleInteraction(
     }
 
     if (interaction.isButton()) {
-      if (interaction.customId.startsWith(TICKET_CLOSE_CONFIRM_PREFIX)) {
+      if (interaction.customId === BUGTHREAD_BUTTON_ID && rcForum) {
+        await openBugModal(interaction, rcForum);
+      } else if (interaction.customId.startsWith(TICKET_CLOSE_CONFIRM_PREFIX)) {
         await handleTicketCloseConfirm(interaction);
       } else if (interaction.customId.startsWith(TICKET_CLOSE_CANCEL_PREFIX)) {
         await handleTicketCloseCancel(interaction);

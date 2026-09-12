@@ -87,6 +87,21 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_todos_guild_status ON todos (guild_id, status);
   CREATE INDEX IF NOT EXISTS idx_todos_guild_assignee ON todos (guild_id, assignee_id);
+
+  CREATE TABLE IF NOT EXISTS rcsupport_posts (
+    discord_post_id TEXT PRIMARY KEY,
+    plugin_ticket_id INTEGER UNIQUE,
+    reporter_discord_id TEXT,
+    api_acknowledged INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS rcsupport_poll_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    last_poll_timestamp INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT OR IGNORE INTO rcsupport_poll_state (singleton, last_poll_timestamp) VALUES (1, 0);
+  CREATE TABLE IF NOT EXISTS rcsupport_panel (
+    guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL
+  );
 `);
 
 function ensureColumn(table: string, column: string, definition: string): void {
