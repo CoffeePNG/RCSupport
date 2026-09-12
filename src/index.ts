@@ -5,9 +5,13 @@ import { syncGuildCommands } from "./deployCommands";
 import { handleInteraction } from "./events/interactionCreate";
 import { seedDefaultTicketTypes } from "./seed/defaultTicketTypes";
 import "./db/connect";
+import { loadBridgeConfig } from "./rcsupport/config";
+import { RCSupportForum } from "./rcsupport/forum";
+
+const rcForum = new RCSupportForum(loadBridgeConfig());
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
 const commandsByName = new Map(commands.map((command) => [command.data.name, command]));
@@ -30,7 +34,14 @@ async function registerCommands(clientId: string, guildIds: readonly string[]): 
   }
 }
 
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
+  try { await rcForum.start(readyClient); }
+  catch (error) {
+    console.error("RCSupport Forum validation failed; bot cannot start:", error);
+    process.exitCode = 1;
+    readyClient.destroy();
+    return;
+  }
   for (const guild of readyClient.guilds.cache.values()) {
     seedDefaultTicketTypes(guild.id);
   }
@@ -54,7 +65,7 @@ client.on(Events.GuildCreate, (guild) => {
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
-  void handleInteraction(interaction, commandsByName);
+  void handleInteraction(interaction, commandsByName, rcForum);
 });
 
 client.login(config.token);
