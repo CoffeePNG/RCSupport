@@ -42,7 +42,7 @@ export class RCSupportForum {
       throw new Error("RCSUPPORT_FORUM_CHANNEL_ID does not identify a Forum channel");
     await this.prepareForum(client, channel);
     this.forum = channel;
-    console.log(`RCSupport Forum ready: guild=${channel.guildId} forum=${channel.id}; polling every ${this.config.pollIntervalMs}ms`);
+    console.log(`RCSupport Forum ready: guild=${channel.guildId} forum=${channel.id}; polling every ${this.config.pollIntervalMs}ms; report-renderer=structured-v2; setup=assign`);
     if (!this.listening) {
     client.on("messageCreate", (message) => { void this.onMessage(message).catch((e) => console.error("RCSupport reply sync failed:", e)); });
     client.on("threadUpdate", (oldThread, newThread) => {
@@ -67,10 +67,6 @@ export class RCSupportForum {
         ? await client.channels.fetch(this.config.forumChannelId).catch(() => null) : null;
       const ownerGuild = saved?.guild_id ?? (current && "guildId" in current ? current.guildId : undefined);
       if (ownerGuild && ownerGuild !== guildId) throw new Error("Configure the bridge in the server containing its current Forum.");
-      if (this.config.forumChannelId && this.config.forumChannelId !== channelId) {
-        const count = db.prepare("SELECT COUNT(*) AS total FROM rcsupport_posts").get() as { total: number };
-        if (count.total) throw new Error("This bridge already has reports in its current Forum. Moving existing reports requires a migration.");
-      }
       const channel = await client.channels.fetch(channelId);
       if (!channel || channel.type !== ChannelType.GuildForum || channel.guildId !== guildId)
         throw new Error("Choose a Forum channel in this server.");

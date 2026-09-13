@@ -153,3 +153,29 @@ test('refresh restores saved wizard fields in the existing starter without chang
   assert.equal(edited.content, undefined);
   await assert.rejects(service.refreshReport('wrong-guild', 7), /containing the bug Forum/);
 });
+
+
+test('setup assigns a replacement Forum after deletion even when old reports exist', async () => {
+  const channel = { id: 'replacement', guildId: 'guild', type: ChannelType.GuildForum, availableTags: [],
+    permissionsFor: () => ({ has: () => true }),
+    async setAvailableTags(tags) { this.availableTags = tags.map((tag, i) => ({ ...tag, id: String(i) })); },
+  };
+  const client = { user: { id: 'bot' }, channels: { fetch: async id => {
+    if (id === 'deleted') throw Object.assign(new Error('Unknown Channel'), { code: 10003 });
+    return channel;
+  } }, on() {} };
+  db.prepare('UPDATE rcsupport_forum_settings SET channel_id = ? WHERE singleton = 1').run('deleted');
+  const countBefore = db.prepare('SELECT COUNT(*) AS total FROM rcsupport_posts').get().total;
+  assert.ok(countBefore > 0);
+  const service = new RCSupportForum({ forumChannelId: 'deleted', baseUrl: new URL('https://localhost'), pollIntervalMs: 20000 });
+  service.poll = async () => {};
+  try {
+    await service.setup(client, 'guild', 'replacement');
+    assert.equal(service.getForum().id, 'replacement');
+    assert.equal(db.prepare('SELECT channel_id FROM rcsupport_forum_settings WHERE singleton = 1').get().channel_id, 'replacement');
+    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM rcsupport_posts').get().total, countBefore);
+    assert.equal(channel.availableTags.length, 5);
+    await service.setup(client, 'guild', 'replacement');
+    assert.equal(channel.availableTags.length, 5);
+  } finally { service.stop(); }
+});
