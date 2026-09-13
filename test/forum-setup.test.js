@@ -42,16 +42,19 @@ test('Forum setup preserves tags, persists selection, and rejects another guild'
   }
 });
 
-test('poll finds reports despite a future saved cursor and does not create duplicate posts', async () => {
+test('poll handles Gson-omitted fields and a future saved cursor without duplicate posts', async () => {
   const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost'),
     token: 'test', pollIntervalMs: 20000, alertModeCacheMs: 60000 });
   let creates = 0, acknowledgements = 0;
   service.forum = {
     id: 'forum', guildId: 'guild', availableTags: [{ id: 'open-tag', name: 'open' }],
-    threads: { create: async () => { creates++; return { id: 'new-post' }; } },
+    threads: { create: async (options) => {
+      assert.equal(options.message.embeds[0].toJSON().fields[1].value, 'Not recorded');
+      creates++; return { id: 'new-post' };
+    } },
   };
   const ticket = { id: 7, description: 'Clock skew report', server_id: 'build1', discord_id: 'reporter',
-    world: null, x: null, y: null, z: null, discord_post_id: null, updated_at: 100 };
+    world: 'world', updated_at: 100 };
   service.api.tickets = async (since) => {
     assert.equal(since, 0);
     return [ticket];

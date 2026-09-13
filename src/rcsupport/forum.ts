@@ -145,7 +145,7 @@ export class RCSupportForum {
 
   private async createPluginPost(ticket: PluginTicket): Promise<void> {
     const leads = await this.mentionLeads();
-    const location = ticket.world && ticket.x !== null && ticket.y !== null && ticket.z !== null
+    const location = ticket.world && ticket.x != null && ticket.y != null && ticket.z != null
       ? `${ticket.world} (${ticket.x.toFixed(1)}, ${ticket.y.toFixed(1)}, ${ticket.z.toFixed(1)})` : "Not recorded";
     const embed = new EmbedBuilder()
       .setTitle(`Bug #${ticket.id}`)

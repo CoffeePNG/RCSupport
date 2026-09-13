@@ -10,6 +10,8 @@ test('plugin post mapping and API post ID each prevent duplicate creation', () =
   assert.equal(shouldCreatePost(plugin, null), false);
   assert.equal(shouldCreatePost(null, 'post-1'), false);
   assert.equal(shouldCreatePost(null, null), true);
+  assert.equal(shouldCreatePost(null, undefined), true);
+  assert.equal(shouldCreatePost(plugin, undefined), false);
 });
 test('reporter, bot, and Discord-native messages are not forwarded', () => {
   assert.equal(shouldForwardReply(plugin, 'reporter', false), false);

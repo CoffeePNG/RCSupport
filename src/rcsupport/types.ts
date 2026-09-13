@@ -8,13 +8,13 @@ export interface PluginTicket {
   reporter_name: string;
   discord_id: string;
   description: string;
-  world: string | null;
-  x: number | null;
-  y: number | null;
-  z: number | null;
+  world?: string | null;
+  x?: number | null;
+  y?: number | null;
+  z?: number | null;
   server_id: string;
   status: TicketStatus;
-  discord_post_id: string | null;
+  discord_post_id?: string | null;
   created_at: number;
   updated_at: number;
 }
