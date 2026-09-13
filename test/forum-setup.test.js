@@ -12,6 +12,8 @@ after(() => db.close());
 require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
 require.cache[require.resolve('../dist/rcsupport/events')] = { exports: { subscribeReports: () => () => {} } };
 const { RCSupportForum } = require('../dist/rcsupport/forum');
+const { BridgeClient } = require('../dist/rcsupport/api');
+BridgeClient.prototype.statusUpdates = async () => [];
 
 test('notification during a poll queues another reconciliation', async () => {
   const service = new RCSupportForum({ baseUrl: new URL('https://localhost') });
@@ -101,7 +103,7 @@ test('startup prepares a blank Forum without duplicating tags on restart', async
   service.poll = async () => {};
   try {
     await service.start(client);
-    assert.deepEqual(channel.availableTags.map(t => t.name), ['open', 'acknowledged', 'in_progress', 'resolved', 'wontfix']);
+    assert.deepEqual(channel.availableTags.map(t => t.name), ['Open', 'Acknowledged', 'In Progress', 'Resolved', 'Won’t Fix']);
     await service.start(client);
     assert.equal(channel.availableTags.length, 5);
   } finally { service.stop(); }
@@ -178,4 +180,79 @@ test('setup assigns a replacement Forum after deletion even when old reports exi
     await service.setup(client, 'guild', 'replacement');
     assert.equal(channel.availableTags.length, 5);
   } finally { service.stop(); }
+});
+
+
+test('closed status updates retry failed/deleted posts without blocking others or losing custom tags', async () => {
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
+  const statuses = ['Open','Acknowledged','In Progress','Resolved','Won’t Fix'];
+  const pending = [301,302].map(id => ({ revision: 1, ticket: { id, status: 'resolved', discord_post_id: `mapped${id}`, discord_id: '123' } }));
+  const acks = [], edits = [];
+  let unavailable = true;
+  const threads = new Map(pending.map(({ticket}) => [ticket.discord_post_id, {
+    id: ticket.discord_post_id, parentId: 'forum', appliedTags: ['custom','s0'],
+    async setAppliedTags(tags) { edits.push([this.id, tags]); this.appliedTags = tags; },
+  }]));
+  service.forum = { id: 'forum', availableTags: statuses.map((name,i) => ({id:`s${i}`,name})),
+    threads: { fetch: async id => { if (id === 'mapped301' && unavailable) throw new Error('Deleted post'); return threads.get(id); } },
+  };
+  service.api.tickets = async () => [];
+  service.api.statusUpdates = async () => pending.filter(u => !acks.includes(u.ticket.id));
+  service.api.ticket = async id => ({ ticket: pending.find(u => u.ticket.id === id).ticket, revision: 1 });
+  service.api.acknowledgeStatus = async (id, revision) => { assert.equal(revision, 1); acks.push(id); return { acknowledged: true }; };
+  await service.poll(); assert.deepEqual(acks, [302]); assert.match(service.lastSyncError, /#301/);
+  assert.deepEqual(edits, [['mapped302', ['custom','s3']]]);
+  unavailable = false;
+  await service.poll(); assert.deepEqual(acks, [302,301]); assert.equal(service.lastSyncError, null);
+  await service.poll(); assert.equal(edits.length, 2);
+});
+
+test('a failed acknowledgement retries without another tag edit', async () => {
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
+  const ticket = { id: 303, discord_id: '123', status: 'resolved', discord_post_id: 'mapped303' };
+  let edits = 0, acknowledgements = 0;
+  const thread = { parentId: 'forum', appliedTags: ['s0'], async setAppliedTags(tags) { edits++; this.appliedTags = tags; } };
+  service.forum = { id: 'forum', availableTags: [{id:'s0',name:'Open'},{id:'s3',name:'Resolved'}], threads: {fetch:async () => thread} };
+  service.api.ticket = async () => ({ticket, revision: 2});
+  service.api.acknowledgeStatus = async () => { if (++acknowledgements === 1) throw new Error('Network interrupted'); return {acknowledged:true}; };
+  await assert.rejects(service.syncStatusUpdate({ticket, revision:2}), /Network/);
+  await service.syncStatusUpdate({ticket, revision:2});
+  assert.equal(edits, 1); assert.equal(acknowledgements, 2);
+});
+
+test('Discord status changes use revision checks and ignore delayed bot echoes', async () => {
+  db.prepare('INSERT INTO rcsupport_posts VALUES (?, ?, ?, 1)').run('mapped304',304,'reporter');
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
+  service.forum = {id:'forum', availableTags: ['Open','Acknowledged','In Progress','Resolved','Won’t Fix'].map((name,i) => ({id:`s${i}`,name}))};
+  let statusCalls = [], polls = 0;
+  service.api.ticket = async () => ({ticket:{id:304,status:'open'},revision:7});
+  service.api.status = async (...args) => {statusCalls.push(args);};
+  service.poll = async () => { polls++; };
+  const oldThread = {id:'mapped304',parentId:'forum',appliedTags:['s0']};
+  const updated = {...oldThread,appliedTags:['s3']};
+  service.ownTagUpdates.set(service.tagSignature(updated.id,updated.appliedTags),Date.now()+300000);
+  await service.onThreadUpdate(oldThread,updated); assert.equal(statusCalls.length,0);
+  await service.onThreadUpdate(oldThread,updated); assert.deepEqual(statusCalls,[[304,'resolved',undefined,7]]);
+  service.api.ticket = async () => ({ticket:{id:304,status:'in_progress'},revision:8});
+  await service.onThreadUpdate(oldThread,updated); assert.equal(statusCalls.length,1); assert.equal(polls,1);
+});
+
+test('a mapped post in a replaced Forum is preserved and is not acknowledged as synchronized', async () => {
+  const service = new RCSupportForum({forumChannelId:'replacement',baseUrl:new URL('https://localhost')});
+  const ticket = {id:305,discord_id:'123',status:'resolved',discord_post_id:'old-post'};
+  service.api.ticket = async () => ({ticket,revision:1});
+  service.api.acknowledgeStatus = async () => { throw new Error('must not acknowledge'); };
+  service.forum = {id:'replacement',threads:{fetch:async () => ({parentId:'old-forum'})}};
+  await assert.rejects(service.syncStatusUpdate({ticket,revision:1}), /earlier Forum/);
+});
+
+
+test('batched recovery advances past failures in the first page', async () => {
+  const service = new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  service.forum = {id:'forum'};
+  const cursors = [], attempted = [];
+  service.api.statusUpdates = async after => { cursors.push(after); return Array.from({length:after===0?50:2},(_,i)=>({ticket:{id:after+i+1},revision:1})); };
+  service.api.tickets = async () => [];
+  service.syncStatusUpdate = async u => { attempted.push(u.ticket.id); if(u.ticket.id===1) throw new Error('Missing post'); };
+  await service.poll(); assert.deepEqual(cursors,[0,50]); assert.equal(attempted.length,52); assert.equal(attempted.at(-1),52);
 });

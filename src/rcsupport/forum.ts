@@ -10,6 +10,8 @@ import { shouldCreatePost, shouldForwardReply, shouldSyncStatus } from "./policy
 import { db } from "../db/connect";
 import { subscribeReports } from "./events";
 import { reportEmbedBatches } from "./reportEmbeds";
+import { planStatusTags, statusTagId, replaceStatusTag } from "./statusTags";
+import { StatusUpdate } from "./types";
 
 export class RCSupportForum {
   readonly api: BridgeClient;
@@ -24,6 +26,17 @@ export class RCSupportForum {
   private stopEvents: (() => void) | null = null;
   private pollAgain = false;
   private syncError: string | null = null;
+  private statusWork = new Map<string, Promise<unknown>>();
+  private ownTagUpdates = new Map<string, number>();
+
+  private async serial<T>(postId: string, work: () => Promise<T>): Promise<T> {
+    const previous = this.statusWork.get(postId) ?? Promise.resolve();
+    const next = previous.catch(() => {}).then(work);
+    this.statusWork.set(postId, next);
+    try { return await next; }
+    finally { if (this.statusWork.get(postId) === next) this.statusWork.delete(postId); }
+  }
+  private tagSignature(postId: string, tags: readonly string[]): string { return postId + ":" + [...tags].sort().join(","); }
 
   get lastSyncError(): string | null { return this.syncError; }
 
@@ -79,16 +92,11 @@ export class RCSupportForum {
   }
 
   private async prepareForum(client: Client, channel: ForumChannel): Promise<void> {
-    const missing = STATUSES.filter(status => !channel.availableTags.some(tag => tag.name === status));
-    if (!missing.length) return;
+    const plan = planStatusTags(channel.availableTags);
+    if (!plan.changed) return;
     if (!client.user || !channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageChannels))
-      throw new Error("Give the bot Manage Channels on the bug Forum so it can create missing status tags.");
-    if (channel.availableTags.length + missing.length > 20)
-      throw new Error("The bug Forum has no room for the missing status tags. Remove unused tags and run setup again.");
-    await channel.setAvailableTags([
-      ...channel.availableTags,
-      ...missing.map(name => ({ name, moderated: false })),
-    ], "Configure RCSupport status tags");
+      throw new Error("Give the bot Manage Channels on the bug Forum so it can prepare readable status tags.");
+    await channel.setAvailableTags(plan.tags, "Configure RCSupport status labels and icons");
   }
 
   stop(): void {
@@ -102,9 +110,7 @@ export class RCSupportForum {
     return this.forum;
   }
   tag(status: TicketStatus): string {
-    const tag = this.getForum().availableTags.find((t) => t.name === status);
-    if (!tag) throw new Error(`Missing RCSupport status tag: ${status}`);
-    return tag.id;
+    return statusTagId(this.getForum().availableTags, status);
   }
   private leads(): string[] {
     const forum = this.getForum();
@@ -136,6 +142,23 @@ export class RCSupportForum {
     this.polling = true;
     this.syncError = null;
     try {
+      // Process durable changes before the legacy open-report listing. A large open
+      // listing or an individual deleted post must not starve closed status updates.
+      try {
+        let after = 0;
+        while (true) {
+          const updates = await this.api.statusUpdates(after);
+          for (const update of updates) {
+            try { await this.syncStatusUpdate(update); }
+            catch (error) { this.reportSyncError(update.ticket.id, "synchronize Discord status", error); }
+          }
+          if (updates.length < 50) break;
+          const next = updates[updates.length - 1].ticket.id;
+          if (next <= after) throw new Error("Status update cursor did not advance");
+          after = next;
+        }
+      } catch (error) { this.reportSyncError(0, "read pending status updates (update the plugin as well as the bot)", error); }
+      for (const [key, expiry] of this.ownTagUpdates) if (expiry < Date.now()) this.ownTagUpdates.delete(key);
       await this.acknowledgePending();
       // The bot and Minecraft can have different clocks. Reconcile all open reports;
       // persisted mappings below prevent duplicate Forum posts.
@@ -175,6 +198,35 @@ export class RCSupportForum {
     }
   }
 
+  private async syncStatusUpdate(update: StatusUpdate): Promise<void> {
+    const ticket = update.ticket;
+    if (!repo.byPluginTicket(ticket.id) && ticket.discord_post_id) {
+      repo.storePluginPost(ticket.id, ticket.discord_post_id, ticket.discord_id);
+      repo.acknowledge(ticket.discord_post_id);
+    }
+    let postId = repo.byPluginTicket(ticket.id)?.discordPostId ?? ticket.discord_post_id;
+    if (!postId) {
+      await this.createPluginPost(ticket);
+      postId = repo.byPluginTicket(ticket.id)!.discordPostId;
+    }
+    await this.serial(postId, async () => {
+      // A newer in-game transition supersedes this snapshot; never acknowledge that newer revision.
+      const current = await this.api.ticket(ticket.id);
+      if (current.revision !== update.revision) { this.pollAgain = true; return; }
+      const forum = this.getForum();
+      const thread = await forum.threads.fetch(postId!);
+      if (!thread || thread.parentId !== forum.id) throw new Error("The mapped report post is missing or belongs to an earlier Forum. Its mapping was preserved.");
+      const tags = replaceStatusTag(forum.availableTags, thread.appliedTags, current.ticket.status);
+      if (this.tagSignature(postId!, tags) !== this.tagSignature(postId!, thread.appliedTags)) {
+        // Retain until the gateway echo arrives, including echoes delayed until after another transition.
+        this.ownTagUpdates.set(this.tagSignature(postId!, tags), Date.now() + 300000);
+        await thread.setAppliedTags(tags, "Synchronize saved RCSupport report status");
+      }
+      const ack = await this.api.acknowledgeStatus(ticket.id, update.revision);
+      if (!ack.acknowledged) this.pollAgain = true;
+    });
+  }
+
   private reportSyncError(id: number, operation: string, error: unknown): void {
     const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
     const hint = code === "50013" || code === "50001"
@@ -208,7 +260,7 @@ export class RCSupportForum {
     const batches = reportEmbedBatches(ticket);
     const post = await this.getForum().threads.create({
       name: `#${ticket.id} ${ticket.title || ticket.description}`.replace(/\s+/g, " ").slice(0, 100),
-      appliedTags: [this.tag("open")],
+      appliedTags: [this.tag(ticket.status ?? "open")],
       message: {
         content: leads.map((id) => `<@${id}>`).join(" ") || undefined,
         embeds: batches[0],
@@ -256,7 +308,16 @@ export class RCSupportForum {
     if (selected.length !== 1) { console.warn(`RCSupport post ${newThread.id} must have exactly one status tag`); return; }
     const previous = STATUSES.filter((status) => oldThread.appliedTags.includes(this.tag(status)));
     if (previous.length === 1 && previous[0] === selected[0]) return;
-    // Audit-log actor lookup is best effort and omitted when unavailable.
-    await this.api.status(mapped!.pluginTicketId!, selected[0]);
+    const echo = this.tagSignature(newThread.id, newThread.appliedTags);
+    if ((this.ownTagUpdates.get(echo) ?? 0) >= Date.now()) { this.ownTagUpdates.delete(echo); return; }
+    await this.serial(newThread.id, async () => {
+      const current = await this.api.ticket(mapped!.pluginTicketId!);
+      if (current.ticket.status === selected[0]) return;
+      if (previous.length !== 1 || previous[0] !== current.ticket.status) {
+        void this.poll().catch(e => console.error("RCSupport concurrent status reconciliation failed:", e)); return;
+      }
+      // Compare-and-set prevents a delayed Discord change overwriting a newer in-game decision.
+      await this.api.status(mapped!.pluginTicketId!, selected[0], undefined, current.revision);
+    });
   }
 }

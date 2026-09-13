@@ -2,7 +2,7 @@
 
 ## Canonical workspace
 
-Work only in `C:/Users/Redux/Documents/Development/Republicraft/Git Repos/` going forward. It contains RCSupport, RCSupportBridge, RCUI, RCPlatform, and RCModeration. The former `Desktop/Codex` copies are being retired; do not use them as the working location.
+On this Mac, work in `/Users/nickmerzon/Development/Republicraft/`. The Git checkouts were moved out of the Obsidian vault; notes remain in the vault. RCSupport, RCSupportBridge, RCUI and RCPlatform have been restored from their remotes. The Windows paths in older design documents are historical.
 
 - RCSupport source: https://github.com/CoffeePNG/RCSupport.git
 - RCSupport Forgejo pull mirror: https://forgejo.vhosts.win/RepubliCraft/RCSupport.git
@@ -21,14 +21,16 @@ RCSupportBridge 1.0.2 and the current bot implement authenticated SSE at `/api/v
 
 Plugin console diagnostics: `rcsupport admin diagnostics 10.20.30.202 28002`. Console and RCON access are explicitly allowed. Probes run from Minecraft's network namespace; a locally rejected SAN does not prove the bot's endpoint certificate is invalid. The public PEM must match the bot's configured CA file. Never share private keystores, password files, or bearer tokens in logs.
 
-## Next work: wizard design, not yet implemented
+## Current local work (2026-09-13)
 
-Read `RCSupportBridge/BUG_REPORT_GUI_DESIGN_HANDOFF.md`. The user requested an inventory category screen, report editor, private chat text prompts with CANCEL, attachments, green confirm dye bottom-right, red cancel dye bottom-left, and cancellation on manual inventory close. Messages and UI must integrate with RCUI and RCPlatform. Inspect those adjacent repos before coding; API details and deployed versions are not yet confirmed.
+The submission wizard was already implemented in 1.0.4. The new local 1.0.5 work adds `/bugreport list`, paginated Active/Closed/All and admin-only Everyone/Mine views, private details and history, and confirmed admin close/reopen. Pending status updates are persisted transactionally and reconciled to Discord in batches. The bot migrates status tags in place to readable names and emojis. See each README for the final behavior and API additions.
 
-No wizard implementation has been requested yet. The user is discussing its design. SSE deployment and the complete production report/reply/status round trip still need operator verification; passing local tests is not live verification.
+Opening the list during an unfinished draft asks the user to finish/cancel the draft first, preserving it. Reopen targets Open. Reply history has no unread tracking. These are the implementation defaults for the otherwise unsettled design choices.
+
+Both projects must be updated together. Changes have been built/tested locally; source has not been pushed and neither service has been deployed/restarted by this work. Live Purpur visual acceptance and the full report/reply/status round trip remain to be verified. Preserve the existing production network setup below.
 
 ## Build and preserve
 
-Bot: `npm run build`; use `npm ci` only when dependencies need installation/update. Bridge: Java 25, `mvn package`; install `target/RCSupportBridge-1.0.2-SNAPSHOT.jar`. Replace only the plugin JAR and fully restart Minecraft. Keep its data folder. Preserve the bot's database and environment. Recopy the public certificate only when it changes.
+Bot: `npm run build`; use `npm ci` only when dependencies need installation/update. Bridge: Java 25, `mvn package`; install `target/RCSupportBridge-1.0.5-SNAPSHOT.jar`. Replace only the plugin JAR and fully restart Minecraft. Keep its data folder. Preserve the bot's database and environment. Recopy the public certificate only when it changes.
 
-Most recent local checks: eight bot tests and the plugin Maven package/tests passed, including SSE delivery/reconnect and command permissions. The bot's SQLite tests use Node SQLite with mocked Discord services; this does not test production permissions or deployment. Build outputs are ignored by Git and can be regenerated in the canonical workspace.
+Most recent local checks: focused plugin storage, browser lifecycle, API revision/batching, real RCUI catalog and existing wizard tests passed; the bot suite passed, covering tag migration, closed-report retries, missing historical posts, mapping restoration and loop prevention. Local tests do not prove deployed permissions or visual appearance. Build artifacts remain ignored by Git.

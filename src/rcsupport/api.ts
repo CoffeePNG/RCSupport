@@ -1,6 +1,6 @@
 import https from "node:https";
 import { BridgeConfig } from "./config";
-import { AlertMode, PluginTicket, TicketStatus } from "./types";
+import { AlertMode, PluginTicket, TicketStatus, StatusUpdate } from "./types";
 
 interface Envelope<T> { data: T | null; error: { code: string; message: string } | null }
 
@@ -44,14 +44,18 @@ export class BridgeClient {
   tickets(since: number): Promise<PluginTicket[]> {
     return this.request("GET", `/api/v1/tickets?status=open&since=${since}`);
   }
-  ticket(id: number): Promise<{ ticket: PluginTicket; messages: unknown[] }> {
+  statusUpdates(after = 0): Promise<StatusUpdate[]> { return this.request("GET", `/api/v1/status-updates?after=${after}`); }
+  acknowledgeStatus(id: number, revision: number): Promise<{ acknowledged: boolean }> {
+    return this.request("POST", `/api/v1/tickets/${id}/status-sync`, { revision });
+  }
+  ticket(id: number): Promise<{ ticket: PluginTicket; messages: unknown[]; revision: number }> {
     return this.request("GET", `/api/v1/tickets/${id}`);
   }
   setPost(id: number, postId: string): Promise<PluginTicket> {
     return this.request("POST", `/api/v1/tickets/${id}/post`, { post_id: postId });
   }
-  status(id: number, status: TicketStatus, actor?: string): Promise<PluginTicket> {
-    return this.request("PATCH", `/api/v1/tickets/${id}/status`, { status, ...(actor ? { actor } : {}) });
+  status(id: number, status: TicketStatus, actor?: string, expectedRevision?: number): Promise<PluginTicket> {
+    return this.request("PATCH", `/api/v1/tickets/${id}/status`, { status, ...(actor ? { actor } : {}), ...(expectedRevision === undefined ? {} : { expected_revision: expectedRevision }) });
   }
   reply(id: number, author: string, body: string): Promise<unknown> {
     return this.request("POST", `/api/v1/tickets/${id}/reply`, { author, body });

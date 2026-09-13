@@ -24,6 +24,8 @@ export interface PluginTicket {
   updated_at: number;
 }
 
+export interface StatusUpdate { ticket: PluginTicket; revision: number }
+
 export interface PostMapping {
   discordPostId: string;
   pluginTicketId: number | null;
