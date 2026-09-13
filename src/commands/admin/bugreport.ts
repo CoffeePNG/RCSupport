@@ -17,6 +17,9 @@ function panelCommand(name: "bugreport" | "br"): Command {
     .addSubcommand((sub) => sub.setName("setup").setDescription("Assign the bug Forum and create missing status tags")
       .addChannelOption((option) => option.setName("channel").setDescription("Bug report Forum in this server")
         .addChannelTypes(ChannelType.GuildForum).setRequired(true)))
+    .addSubcommand((sub) => sub.setName("refresh").setDescription("Restore a Minecraft report's saved details in its existing post")
+      .addIntegerOption((option) => option.setName("report").setDescription("Minecraft report number")
+        .setMinValue(1).setRequired(true)))
     .addSubcommand((sub) => sub.setName("post").setDescription("Post or refresh the panel")
       .addChannelOption((option) => option.setName("channel").setDescription("Staff channel for the panel")
         .addChannelTypes(ChannelType.GuildText).setRequired(true))),
@@ -24,10 +27,22 @@ function panelCommand(name: "bugreport" | "br"): Command {
     if (!interaction.guildId || !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       await interaction.reply({ content: "Manage Server is required.", flags: MessageFlags.Ephemeral }); return;
     }
-    const option = interaction.options.getChannel("channel", true);
     if (!forum) {
       await interaction.reply({ content: "The support bridge is unavailable.", flags: MessageFlags.Ephemeral }); return;
     }
+    if (interaction.options.getSubcommand() === "refresh") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try {
+        const id = interaction.options.getInteger("report", true);
+        const postId = await forum.refreshReport(interaction.guildId, id);
+        await interaction.editReply({ content: `Restored the saved details for report #${id} in <#${postId}>.` });
+      } catch (error) {
+        console.error("RCSupport report refresh failed:", error);
+        await interaction.editReply({ content: "Could not refresh this report. Check the report number, Forum permissions, and bot logs." });
+      }
+      return;
+    }
+    const option = interaction.options.getChannel("channel", true);
     if (interaction.options.getSubcommand() === "setup") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       try { await forum.setup(interaction.client, interaction.guildId, option.id); }
@@ -35,7 +50,10 @@ function panelCommand(name: "bugreport" | "br"): Command {
         await interaction.editReply({ content: error instanceof Error ? error.message : "Forum setup failed. Check the bot logs." });
         return;
       }
-      await interaction.editReply({ content: `Bug reports now use <#${option.id}>. All five status tags are ready. Saved for future restarts.` });
+      const sync = forum.lastSyncError
+        ? `Forum setup is saved, but report synchronization needs attention: ${forum.lastSyncError}`
+        : "Report synchronization is running.";
+      await interaction.editReply({ content: `Bug reports now use <#${option.id}>. All five status tags are ready. ${sync}` });
       return;
     }
     if (forum.getForum().guildId !== interaction.guildId) {

@@ -88,3 +88,68 @@ test('poll handles Gson-omitted fields and a future saved cursor without duplica
   assert.equal(acknowledgements, 1);
   assert.equal(db.prepare('SELECT api_acknowledged FROM rcsupport_posts WHERE plugin_ticket_id = 7').get().api_acknowledged, 1);
 });
+
+
+test('startup prepares a blank Forum without duplicating tags on restart', async () => {
+  const channel = {
+    id: 'forum', guildId: 'guild', type: ChannelType.GuildForum, availableTags: [],
+    permissionsFor: () => ({ has: () => true }),
+    async setAvailableTags(tags) { this.availableTags = tags.map((tag, i) => ({ ...tag, id: String(i) })); },
+  };
+  const client = { user: { id: 'bot' }, channels: { fetch: async () => channel }, on() {} };
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost'), pollIntervalMs: 20000 });
+  service.poll = async () => {};
+  try {
+    await service.start(client);
+    assert.deepEqual(channel.availableTags.map(t => t.name), ['open', 'acknowledged', 'in_progress', 'resolved', 'wontfix']);
+    await service.start(client);
+    assert.equal(channel.availableTags.length, 5);
+  } finally { service.stop(); }
+});
+
+test('a failed report does not block later reports and retries without duplicating successful posts', async () => {
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
+  let fail = true;
+  const posted = [];
+  service.forum = { id: 'forum', guildId: 'guild', availableTags: [{ id: 'open', name: 'open' }],
+    threads: { async create(options) {
+      if (options.name.startsWith('#101 ') && fail) throw Object.assign(new Error('Missing permissions'), { code: 50013 });
+      posted.push(options.name);
+      return { id: options.name.startsWith('#101 ') ? 'post101' : 'post102' };
+    } },
+  };
+  service.api.tickets = async () => [101, 102].map(id => ({ id, description: 'Details', server_id: 'build1', discord_id: '123' }));
+  service.api.configMode = async () => ({ alert_mode: 'broadcast' });
+  service.api.setPost = async () => ({});
+  await service.poll();
+  assert.deepEqual(posted, ['#102 Details']);
+  assert.match(service.lastSyncError, /#101.*View Channel/);
+  fail = false;
+  await service.poll();
+  assert.deepEqual(posted, ['#102 Details', '#101 Details']);
+  assert.equal(service.lastSyncError, null);
+});
+
+test('refresh restores saved wizard fields in the existing starter without changing tags or replies', async () => {
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
+  const ticket = { id: 7, title: 'Door broken', category: 'Gameplay', description: 'Expected opening',
+    reproduction_steps: '1. Click door', item_attachment: 'Material: STICK; Source plugin: Unknown',
+    url_attachment: 'https://example.com/image', reporter_name: 'Builder', discord_id: '123', server_id: 'build1' };
+  let edited, name;
+  service.api.ticket = async () => ({ ticket, messages: [] });
+  service.forum = { id: 'forum', guildId: 'guild', threads: { fetch: async postId => {
+    assert.equal(postId, 'new-post');
+    return { parentId: 'forum', fetchStarterMessage: async () => ({ editable: true, edit: async payload => { edited = payload; } }),
+      setName: async value => { name = value; } };
+  } } };
+  assert.equal(await service.refreshReport('guild', 7), 'new-post');
+  assert.equal(name, '#7 Door broken');
+  const fields = edited.embeds[0].toJSON().fields;
+  assert.equal(fields.find(f => f.name === 'Category').value, 'Gameplay');
+  assert.equal(fields.find(f => f.name === 'Reproduction steps').value, '1. Click door');
+  assert.equal(fields.find(f => f.name === 'Attached item').value, ticket.item_attachment);
+  assert.equal(fields.find(f => f.name === 'Screenshot / video link').value, ticket.url_attachment);
+  assert.deepEqual(edited.allowedMentions, { parse: [] });
+  assert.equal(edited.content, undefined);
+  await assert.rejects(service.refreshReport('wrong-guild', 7), /containing the bug Forum/);
+});

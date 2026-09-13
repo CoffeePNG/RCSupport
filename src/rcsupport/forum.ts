@@ -23,6 +23,9 @@ export class RCSupportForum {
   private lastPollSummary = "";
   private stopEvents: (() => void) | null = null;
   private pollAgain = false;
+  private syncError: string | null = null;
+
+  get lastSyncError(): string | null { return this.syncError; }
 
   constructor(config: BridgeConfig) {
     this.config = config;
@@ -37,8 +40,7 @@ export class RCSupportForum {
     const channel = await client.channels.fetch(this.config.forumChannelId);
     if (!channel || channel.type !== ChannelType.GuildForum)
       throw new Error("RCSUPPORT_FORUM_CHANNEL_ID does not identify a Forum channel");
-    const missing = STATUSES.filter((status) => !channel.availableTags.some((tag) => tag.name === status));
-    if (missing.length) throw new Error(`RCSupport Forum is missing status tags: ${missing.join(", ")}`);
+    await this.prepareForum(client, channel);
     this.forum = channel;
     console.log(`RCSupport Forum ready: guild=${channel.guildId} forum=${channel.id}; polling every ${this.config.pollIntervalMs}ms`);
     if (!this.listening) {
@@ -72,22 +74,25 @@ export class RCSupportForum {
       const channel = await client.channels.fetch(channelId);
       if (!channel || channel.type !== ChannelType.GuildForum || channel.guildId !== guildId)
         throw new Error("Choose a Forum channel in this server.");
-      const missing = STATUSES.filter((status) => !channel.availableTags.some((tag) => tag.name === status));
-      if (missing.length) {
-        if (!client.user || !channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageChannels))
-          throw new Error("Give the bot Manage Channels on this Forum so it can add missing status tags.");
-        if (channel.availableTags.length + missing.length > 20)
-          throw new Error("There is not enough room for the missing status tags. Remove unused Forum tags and try again.");
-        await channel.setAvailableTags([
-          ...channel.availableTags,
-          ...missing.map((name) => ({ name, moderated: false })),
-        ], "Configure RCSupport status tags");
-      }
+      await this.prepareForum(client, channel);
       db.prepare("INSERT INTO rcsupport_forum_settings (singleton, guild_id, channel_id) VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET guild_id = excluded.guild_id, channel_id = excluded.channel_id")
         .run(guildId, channelId);
       this.config.forumChannelId = channelId;
       await this.start(client);
     } finally { this.configuring = false; }
+  }
+
+  private async prepareForum(client: Client, channel: ForumChannel): Promise<void> {
+    const missing = STATUSES.filter(status => !channel.availableTags.some(tag => tag.name === status));
+    if (!missing.length) return;
+    if (!client.user || !channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageChannels))
+      throw new Error("Give the bot Manage Channels on the bug Forum so it can create missing status tags.");
+    if (channel.availableTags.length + missing.length > 20)
+      throw new Error("The bug Forum has no room for the missing status tags. Remove unused tags and run setup again.");
+    await channel.setAvailableTags([
+      ...channel.availableTags,
+      ...missing.map(name => ({ name, moderated: false })),
+    ], "Configure RCSupport status tags");
   }
 
   stop(): void {
@@ -120,8 +125,12 @@ export class RCSupportForum {
 
   private async acknowledgePending(): Promise<void> {
     for (const pending of repo.unacknowledged()) {
-      await this.api.setPost(pending.pluginTicketId!, pending.discordPostId);
-      repo.acknowledge(pending.discordPostId);
+      try {
+        await this.api.setPost(pending.pluginTicketId!, pending.discordPostId);
+        repo.acknowledge(pending.discordPostId);
+      } catch (error) {
+        this.reportSyncError(pending.pluginTicketId!, "acknowledge", error);
+      }
     }
   }
 
@@ -129,6 +138,7 @@ export class RCSupportForum {
     if (!this.forum) return;
     if (this.polling) { this.pollAgain = true; return; }
     this.polling = true;
+    this.syncError = null;
     try {
       await this.acknowledgePending();
       // The bot and Minecraft can have different clocks. Reconcile all open reports;
@@ -146,13 +156,20 @@ export class RCSupportForum {
           continue;
         }
         if (shouldCreatePost(known, ticket.discord_post_id)) {
-          await this.createPluginPost(ticket);
-          created++;
+          try {
+            await this.createPluginPost(ticket);
+            created++;
+          } catch (error) {
+            this.reportSyncError(ticket.id, "create Discord post", error);
+          }
         }
       }
-      const summary = `RCSupport poll OK: forum=${this.forum.id} received=${tickets.length} created=${created} already-mapped=${mapped} restored-mappings=${restored}`;
+      const summary = `RCSupport poll ${this.syncError ? "PARTIAL" : "OK"}: forum=${this.forum.id} received=${tickets.length} created=${created} already-mapped=${mapped} restored-mappings=${restored}`;
       if (summary !== this.lastPollSummary) console.log(summary);
       this.lastPollSummary = summary;
+    } catch (error) {
+      this.syncError = "Could not read saved Minecraft reports. Check the bot logs for the bridge error.";
+      throw error;
     } finally {
       this.polling = false;
       if (this.pollAgain) {
@@ -160,6 +177,34 @@ export class RCSupportForum {
         void this.poll().catch(e => console.error("RCSupport queued poll failed:", e));
       }
     }
+  }
+
+  private reportSyncError(id: number, operation: string, error: unknown): void {
+    const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+    const hint = code === "50013" || code === "50001"
+      ? "Check the bot's View Channel, Send Messages, Send Messages in Threads, and Embed Links permissions."
+      : "Check the bot logs for details; synchronization will retry.";
+    this.syncError = `Report #${id}: could not ${operation}. ${hint}`;
+    console.error(`RCSupport report #${id} failed to ${operation}:`, error);
+  }
+
+  /** Repair the existing starter from the stored report, preserving replies and status tags. */
+  async refreshReport(guildId: string, id: number): Promise<string> {
+    const forum = this.getForum();
+    if (forum.guildId !== guildId) throw new Error("Refresh reports in the server containing the bug Forum.");
+    const { ticket } = await this.api.ticket(id);
+    const postId = repo.byPluginTicket(id)?.discordPostId ?? ticket.discord_post_id;
+    if (!postId) throw new Error("This report has no Discord post yet. Wait for synchronization and retry.");
+    const thread = await forum.threads.fetch(postId);
+    if (!thread || thread.parentId !== forum.id) throw new Error("The saved post is not in the configured bug Forum.");
+    const starter = await thread.fetchStarterMessage();
+    if (!starter?.editable) throw new Error("The bot cannot edit this report's starter message.");
+    const batches = reportEmbedBatches(ticket);
+    if (batches.length !== 1)
+      throw new Error("This legacy report is too large for a single starter. Its existing post has been preserved.");
+    await starter.edit({ embeds: batches[0], allowedMentions: { parse: [] } });
+    await thread.setName(`#${ticket.id} ${ticket.title || ticket.description}`.replace(/\s+/g, " ").slice(0, 100));
+    return postId;
   }
 
   private async createPluginPost(ticket: PluginTicket): Promise<void> {
