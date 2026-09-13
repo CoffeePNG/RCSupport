@@ -9,6 +9,7 @@ import { PluginTicket, STATUSES, TicketStatus } from "./types";
 import { shouldCreatePost, shouldForwardReply, shouldSyncStatus } from "./policy";
 import { db } from "../db/connect";
 import { subscribeReports } from "./events";
+import { reportEmbedBatches } from "./reportEmbeds";
 
 export class RCSupportForum {
   readonly api: BridgeClient;
@@ -163,23 +164,20 @@ export class RCSupportForum {
 
   private async createPluginPost(ticket: PluginTicket): Promise<void> {
     const leads = await this.mentionLeads();
-    const location = ticket.world && ticket.x != null && ticket.y != null && ticket.z != null
-      ? `${ticket.world} (${ticket.x.toFixed(1)}, ${ticket.y.toFixed(1)}, ${ticket.z.toFixed(1)})` : "Not recorded";
-    const embed = new EmbedBuilder()
-      .setTitle(`Bug #${ticket.id}`)
-      .setDescription(ticket.description.slice(0, 4000))
-      .addFields({ name: "Server", value: ticket.server_id }, { name: "Location", value: location });
+    const batches = reportEmbedBatches(ticket);
     const post = await this.getForum().threads.create({
-      name: `#${ticket.id} ${ticket.description}`.replace(/\s+/g, " ").slice(0, 100),
+      name: `#${ticket.id} ${ticket.title || ticket.description}`.replace(/\s+/g, " ").slice(0, 100),
       appliedTags: [this.tag("open")],
       message: {
-        content: [`Reporter: <@${ticket.discord_id}>`, ...leads.map((id) => `<@${id}>`)].join(" "),
-        embeds: [embed],
+        content: leads.map((id) => `<@${id}>`).join(" ") || undefined,
+        embeds: batches[0],
         allowedMentions: { parse: [], users: leads },
       },
     });
     // Persist before the API acknowledgement so a retry cannot create another post.
     repo.storePluginPost(ticket.id, post.id, ticket.discord_id);
+    // Wizard reports fit the starter. Preserve unusually long legacy reports as continuations.
+    for (const embeds of batches.slice(1)) await post.send({ embeds, allowedMentions: { parse: [] } });
     await this.api.setPost(ticket.id, post.id);
     repo.acknowledge(post.id);
   }

@@ -8,6 +8,11 @@ export interface PluginTicket {
   reporter_name: string;
   discord_id: string;
   description: string;
+  category?: string | null;
+  title?: string | null;
+  reproduction_steps?: string | null;
+  item_attachment?: string | null;
+  url_attachment?: string | null;
   world?: string | null;
   x?: number | null;
   y?: number | null;

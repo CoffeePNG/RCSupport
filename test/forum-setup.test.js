@@ -68,7 +68,7 @@ test('poll handles Gson-omitted fields and a future saved cursor without duplica
   service.forum = {
     id: 'forum', guildId: 'guild', availableTags: [{ id: 'open-tag', name: 'open' }],
     threads: { create: async (options) => {
-      assert.equal(options.message.embeds[0].toJSON().fields[1].value, 'Not recorded');
+      assert.equal(options.message.embeds[0].toJSON().fields.find(field => field.name === 'Location').value, 'Not recorded');
       creates++; return { id: 'new-post' };
     } },
   };
