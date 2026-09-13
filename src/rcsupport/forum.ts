@@ -8,6 +8,7 @@ import * as repo from "./repo";
 import { PluginTicket, STATUSES, TicketStatus } from "./types";
 import { shouldCreatePost, shouldForwardReply, shouldSyncStatus } from "./policy";
 import { db } from "../db/connect";
+import { subscribeReports } from "./events";
 
 export class RCSupportForum {
   readonly api: BridgeClient;
@@ -19,6 +20,8 @@ export class RCSupportForum {
   private listening = false;
   private configuring = false;
   private lastPollSummary = "";
+  private stopEvents: (() => void) | null = null;
+  private pollAgain = false;
 
   constructor(config: BridgeConfig) {
     this.config = config;
@@ -47,6 +50,9 @@ export class RCSupportForum {
     this.stop();
     await this.poll().catch((e) => console.error("RCSupport initial poll failed:", e));
     this.timer = setInterval(() => { void this.poll().catch((e) => console.error("RCSupport poll failed:", e)); }, this.config.pollIntervalMs);
+    this.stopEvents = subscribeReports(this.config, () => {
+      void this.poll().catch(e => console.error("RCSupport event-triggered poll failed:", e));
+    });
   }
 
   async setup(client: Client, guildId: string, channelId: string): Promise<void> {
@@ -83,7 +89,12 @@ export class RCSupportForum {
     } finally { this.configuring = false; }
   }
 
-  stop(): void { if (this.timer) clearInterval(this.timer); this.timer = null; }
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.stopEvents?.(); this.stopEvents = null;
+    this.pollAgain = false;
+  }
   getForum(): ForumChannel {
     if (!this.forum) throw new Error("Run /bugreport setup channel:<forum> to configure the bug Forum.");
     return this.forum;
@@ -114,7 +125,8 @@ export class RCSupportForum {
   }
 
   async poll(): Promise<void> {
-    if (this.polling || !this.forum) return;
+    if (!this.forum) return;
+    if (this.polling) { this.pollAgain = true; return; }
     this.polling = true;
     try {
       await this.acknowledgePending();
@@ -140,7 +152,13 @@ export class RCSupportForum {
       const summary = `RCSupport poll OK: forum=${this.forum.id} received=${tickets.length} created=${created} already-mapped=${mapped} restored-mappings=${restored}`;
       if (summary !== this.lastPollSummary) console.log(summary);
       this.lastPollSummary = summary;
-    } finally { this.polling = false; }
+    } finally {
+      this.polling = false;
+      if (this.pollAgain) {
+        this.pollAgain = false;
+        void this.poll().catch(e => console.error("RCSupport queued poll failed:", e));
+      }
+    }
   }
 
   private async createPluginPost(ticket: PluginTicket): Promise<void> {

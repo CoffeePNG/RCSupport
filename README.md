@@ -321,3 +321,9 @@ Whichever option you use, re-run `npm run deploy-commands` only when the
 slash command *definitions* change (new options, new commands) — day-to-day
 lead/config edits go through `/staff-assign`, `/ticket-config`, and
 `/mod-config` and need no redeploy.
+
+## Live Minecraft report notifications
+
+With RCSupportBridge 1.0.2+, the bot maintains an authenticated SSE connection at `/api/v1/events` using its existing HTTPS URL, certificate, and token. Filing `/bug` triggers an immediate reconciliation. Reconnects also reconcile pending reports; events arriving during a poll queue another pass. No inbound bot port or new dependencies are needed.
+
+Polling remains a recovery fallback, defaulting to 60000ms. Existing `RCSUPPORT_POLL_INTERVAL_MS` values remain effective; set it to `60000` for one-minute recovery checks. Older plugins continue to work via polling while the event connection retries. Look for `RCSupport live report notifications connected` in the bot console. Updating requires rebuilding the bot and installing the new plugin JAR.

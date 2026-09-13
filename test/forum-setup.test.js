@@ -10,7 +10,26 @@ CREATE TABLE rcsupport_poll_state (singleton INTEGER PRIMARY KEY, last_poll_time
 INSERT INTO rcsupport_poll_state VALUES (1, 9999999999);`);
 after(() => db.close());
 require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
+require.cache[require.resolve('../dist/rcsupport/events')] = { exports: { subscribeReports: () => () => {} } };
 const { RCSupportForum } = require('../dist/rcsupport/forum');
+
+test('notification during a poll queues another reconciliation', async () => {
+  const service = new RCSupportForum({ baseUrl: new URL('https://localhost') });
+  service.forum = { id: 'forum' };
+  let release, calls = 0;
+  service.api.tickets = async () => {
+    calls++;
+    if (calls === 1) await new Promise(resolve => { release = resolve; });
+    return [];
+  };
+  const first = service.poll();
+  await new Promise(resolve => setImmediate(resolve));
+  await service.poll();
+  release();
+  await first;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 2);
+});
 
 test('Forum setup preserves tags, persists selection, and rejects another guild', async () => {
   const original = { id: 'existing', name: 'custom', moderated: true, emoji: null };

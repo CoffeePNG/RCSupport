@@ -38,7 +38,7 @@ export function loadBridgeConfig(): BridgeConfig {
     baseUrl, token, forumChannelId,
     // The supplied self-signed certificate is the only CA for this client.
     agent: new https.Agent({ ca, rejectUnauthorized: true }),
-    pollIntervalMs: interval("RCSUPPORT_POLL_INTERVAL_MS", 20000),
+    pollIntervalMs: interval("RCSUPPORT_POLL_INTERVAL_MS", 60000),
     alertModeCacheMs: interval("RCSUPPORT_ALERT_MODE_CACHE_MS", 60000),
   };
 }
