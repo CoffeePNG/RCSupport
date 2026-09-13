@@ -88,6 +88,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_todos_guild_status ON todos (guild_id, status);
   CREATE INDEX IF NOT EXISTS idx_todos_guild_assignee ON todos (guild_id, assignee_id);
 
+CREATE TABLE IF NOT EXISTS rcsupport_history_sync (
+  post_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL DEFAULT '0', before_id TEXT, sweep_high TEXT, checked_at INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS rcsupport_closure_notices (
   event_key TEXT PRIMARY KEY, post_id TEXT NOT NULL, actor TEXT NOT NULL, closed_at INTEGER NOT NULL,
   message_id TEXT, attempted_at INTEGER

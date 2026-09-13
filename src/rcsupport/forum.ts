@@ -7,12 +7,13 @@ import { AlertModeCache, BridgeClient } from "./api";
 import { BridgeConfig } from "./config";
 import * as repo from "./repo";
 import { PluginTicket, STATUSES, TicketStatus } from "./types";
-import { shouldCreatePost, shouldForwardReply, shouldSyncStatus } from "./policy";
+import { shouldCreatePost, shouldSyncStatus } from "./policy";
 import { db } from "../db/connect";
 import { subscribeReports } from "./events";
 import { reportEmbedBatches } from "./reportEmbeds";
 import { planStatusTags, statusTagId, replaceStatusTag, isClosed } from "./statusTags";
 import { StatusUpdate } from "./types";
+import { importHistoryMessage, importHistoryPage } from "./history";
 import { deliverClosure } from "./closureNotice";
 
 export class RCSupportForum {
@@ -207,6 +208,7 @@ export class RCSupportForum {
           }
         }
       }
+      await this.reconcileHistories();
       const summary = `RCSupport poll ${this.syncError ? "PARTIAL" : "OK"}: forum=${this.forum.id} received=${tickets.length} created=${created} already-mapped=${mapped} restored-mappings=${restored}`;
       if (summary !== this.lastPollSummary) console.log(summary);
       this.lastPollSummary = summary;
@@ -359,13 +361,29 @@ export class RCSupportForum {
     return { name: "Unknown staff member", time: Math.floor(now / 1000), key: `${thread.id}:${now}` };
   }
 
+  private async reconcileHistories(): Promise<void> {
+    for (const mapping of repo.historyCandidates()) {
+      try {
+        await this.serial(mapping.discordPostId, async () => {
+          if (repo.threadDeleted(mapping.discordPostId)) return;
+          const thread = await this.getForum().threads.fetch(mapping.discordPostId);
+          if (!thread || thread.parentId !== this.getForum().id) throw new Error("History thread is unavailable or belongs to an earlier Forum");
+          await importHistoryPage(this.api, mapping, thread);
+        });
+      } catch (error) {
+        // Move failures to the back of the fair queue without advancing their page.
+        repo.saveHistoryCursor(mapping.discordPostId, repo.historyCursor(mapping.discordPostId));
+        this.reportSyncError(mapping.pluginTicketId!, "import Discord history", error);
+      }
+    }
+  }
   private async onMessage(message: Message): Promise<void> {
     if (!message.channel.isThread() || message.channel.parentId !== this.config.forumChannelId) return;
     const mapped = repo.byPost(message.channelId);
-    if (!shouldForwardReply(mapped, message.author.id, message.author.bot)) return;
-    if (!message.content.trim()) return;
-    await this.api.reply(mapped!.pluginTicketId!,
-      message.member?.displayName ?? message.author.username, message.content);
+    if (!mapped || mapped.pluginTicketId === null || repo.threadDeleted(message.channelId)) return;
+    await this.serial(message.channelId, async () => {
+      if (!repo.threadDeleted(message.channelId)) await importHistoryMessage(this.api, mapped, message, true);
+    });
   }
 
   private async onThreadUpdate(oldThread: ThreadChannel, newThread: ThreadChannel): Promise<void> {

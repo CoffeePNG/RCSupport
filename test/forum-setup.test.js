@@ -8,6 +8,9 @@ db.exec(`CREATE TABLE rcsupport_forum_settings (singleton INTEGER PRIMARY KEY, g
 CREATE TABLE rcsupport_posts (discord_post_id TEXT PRIMARY KEY, plugin_ticket_id INTEGER UNIQUE, reporter_discord_id TEXT, api_acknowledged INTEGER DEFAULT 0);
 CREATE TABLE rcsupport_poll_state (singleton INTEGER PRIMARY KEY, last_poll_timestamp INTEGER);
 INSERT INTO rcsupport_poll_state VALUES (1, 9999999999);
+CREATE TABLE IF NOT EXISTS rcsupport_history_sync (
+  post_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL DEFAULT '0', before_id TEXT, sweep_high TEXT, checked_at INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS rcsupport_closure_notices (
   event_key TEXT PRIMARY KEY, post_id TEXT NOT NULL, actor TEXT NOT NULL, closed_at INTEGER NOT NULL,
   message_id TEXT, attempted_at INTEGER
@@ -19,6 +22,8 @@ require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
 require.cache[require.resolve('../dist/rcsupport/events')] = { exports: { subscribeReports: () => () => {} } };
 const { RCSupportForum } = require('../dist/rcsupport/forum');
 const { BridgeClient } = require('../dist/rcsupport/api');
+const realReconcileHistories = RCSupportForum.prototype.reconcileHistories;
+RCSupportForum.prototype.reconcileHistories = async () => {}; // Legacy status tests isolate history I/O.
 BridgeClient.prototype.statusUpdates = async () => [];
 
 test('notification during a poll queues another reconciliation', async () => {
@@ -361,4 +366,62 @@ for(const choice of ['confirm','cancel','timeout']) test(`thread deletion confir
   assert.equal(deletes,choice==='confirm'?1:0);
   assert.equal(updates[0].components[0].toJSON().components[0].style,ButtonStyle.Danger);
   assert.deepEqual(updates.at(-1).components,[]);
+});
+
+const { importHistoryMessage, importHistoryPage } = require('../dist/rcsupport/history');
+const snowflake = n => String(100000000000000000n + BigInt(n));
+function humanMessage(n, author='staff') {
+  return {id:snowflake(n), type:0, author:{id:author,username:author,bot:false}, webhookId:null,
+    content:`Message ${n}`, attachments:new Collection(), stickers:new Collection(),createdTimestamp:n*1000};
+}
+test('history includes reporter and staff text/attachments; only live staff replies notify',async()=>{
+  const calls=[];const api={importHistory:async(id,message)=>{calls.push(message);}};
+  const mapping={pluginTicketId:701,discordPostId:'history701',reporterDiscordId:'reporter'};
+  await importHistoryMessage(api,mapping,humanMessage(1,'reporter'),true);
+  await importHistoryMessage(api,mapping,humanMessage(2),true);
+  await importHistoryMessage(api,mapping,humanMessage(3),false);
+  const attachment=humanMessage(4);attachment.content='';attachment.attachments.set('file',{name:'image.png',url:'https://example.com/image.png'});
+  await importHistoryMessage(api,mapping,attachment,false);
+  const automated=humanMessage(5);automated.author.bot=true;await importHistoryMessage(api,mapping,automated,true);
+  assert.equal(calls.length,4);assert.deepEqual(calls.map(m=>m.notify),[false,true,false,false]);
+  assert.equal(calls[0].created_at,1);assert.match(calls[3].body,/image.png.*https:\/\/example.com/);
+});
+test('history import resumes persisted pages, catches new arrivals and never regresses its cursor',async()=>{
+  const mapping={pluginTicketId:702,discordPostId:'history702',reporterDiscordId:'reporter'};
+  const all=Array.from({length:205},(_,i)=>humanMessage(i+1));
+  const stored=new Map();let calls=0;
+  const api={importHistory:async(id,message)=>{calls++;stored.set(message.message_id,message);}};
+  const thread={client:{user:{id:'bot'}},permissionsFor:()=>({has:()=>true}),messages:{fetch:async({before})=>new Collection(all.filter(m=>!before||BigInt(m.id)<BigInt(before)).slice(-100).reverse().map(m=>[m.id,m]))}};
+  await importHistoryPage(api,mapping,thread);
+  assert.equal(stored.size,100);assert.equal(repo.historyCursor(mapping.discordPostId).before_id,snowflake(106));
+  all.push(humanMessage(206));
+  await importHistoryPage(api,mapping,thread);await importHistoryPage(api,mapping,thread);
+  assert.equal(stored.size,205);assert.equal(repo.historyCursor(mapping.discordPostId).last_seen,snowflake(205));
+  await importHistoryPage(api,mapping,thread);assert.equal(stored.size,206);assert.equal(calls,206);
+  all.splice(0);await importHistoryPage(api,mapping,thread);
+  assert.equal(repo.historyCursor(mapping.discordPostId).last_seen,snowflake(206));
+  assert.ok([...stored.values()].every(m=>!m.notify));
+});
+test('failed history imports retry the same page and permission denial leaves cursor unchanged',async()=>{
+  const mapping={pluginTicketId:703,discordPostId:'history703',reporterDiscordId:'reporter'};
+  const stored=new Map();let fail=true,allowed=true;
+  const api={importHistory:async(id,message)=>{stored.set(message.message_id,message);if(fail){fail=false;throw new Error('Response lost');}}};
+  const thread={client:{user:{id:'bot'}},permissionsFor:()=>({has:()=>allowed}),messages:{fetch:async()=>new Collection([1,2].map(n=>[snowflake(n),humanMessage(n)]))}};
+  await assert.rejects(importHistoryPage(api,mapping,thread),/Response lost/);assert.equal(repo.historyCursor(mapping.discordPostId).last_seen,'0');
+  await importHistoryPage(api,mapping,thread);assert.equal(stored.size,2);assert.equal(repo.historyCursor(mapping.discordPostId).last_seen,snowflake(2));
+  allowed=false;await assert.rejects(importHistoryPage(api,mapping,thread),/Read Message History/);assert.equal(repo.historyCursor(mapping.discordPostId).last_seen,snowflake(2));
+});
+test('history reconciliation continues after one thread fails and skips deleted mappings',async()=>{
+  const service=new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  const candidates=repo.historyCandidates;
+  repo.storePluginPost(704,'history704','reporter');repo.acknowledge('history704');repo.recordThreadDeleted('history704','admin');
+  assert.ok(!repo.historyCandidates().some(m=>m.discordPostId==='history704'));
+  const good={pluginTicketId:706,discordPostId:'history706',reporterDiscordId:'reporter'};
+  repo.historyCandidates=()=>[{...good,discordPostId:'missing705',pluginTicketId:705},good];
+  const imported=[];
+  service.api.importHistory=async(id,message)=>{imported.push(id);};
+  const thread={parentId:'forum',client:{user:{id:'bot'}},permissionsFor:()=>({has:()=>true}),messages:{fetch:async()=>new Collection([[snowflake(1),humanMessage(1)]])}};
+  service.forum={id:'forum',threads:{fetch:async id=>{if(id==='missing705')throw new Error('Unavailable');return thread;}}};
+  try{await realReconcileHistories.call(service);assert.deepEqual(imported,[706]);assert.equal(repo.historyCursor('missing705').last_seen,'0');}
+  finally{repo.historyCandidates=candidates;}
 });

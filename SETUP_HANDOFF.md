@@ -31,7 +31,7 @@ Both projects must be updated together. Changes have been built/tested locally; 
 
 ## Build and preserve
 
-Bot: `npm run build`; use `npm ci` only when dependencies need installation/update. Bridge: Java 25, `mvn package`; install `target/RCSupportBridge-1.0.7-SNAPSHOT.jar`. Replace only the plugin JAR and fully restart Minecraft. Keep its data folder. Preserve the bot's database and environment. Recopy the public certificate only when it changes.
+Bot: `npm run build`; use `npm ci` only when dependencies need installation/update. Bridge: Java 25, `mvn package`; install `target/RCSupportBridge-1.0.8-SNAPSHOT.jar`. Replace only the plugin JAR and fully restart Minecraft. Keep its data folder. Preserve the bot's database and environment. Recopy the public certificate only when it changes.
 
 Most recent local checks: focused plugin storage, browser lifecycle, API revision/batching, real RCUI catalog and existing wizard tests passed; the bot suite passed, covering tag migration, closed-report retries, missing historical posts, mapping restoration and loop prevention. Local tests do not prove deployed permissions or visual appearance. Build artifacts remain ignored by Git.
 
@@ -41,3 +41,8 @@ Most recent local checks: focused plugin storage, browser lifecycle, API revisio
 The bot and bridge now support a separate Closed tag and durable closure announcements with actor and long-time/short-date Discord timestamps. Bot delivery receipts recover uncertain sends; stale acknowledgments preserve newer closures. The bot adds a confirmed admin-only `/bugreport delete [thread]` command that retains Minecraft history and suppresses later recreation. The packaged messages now use gray text, a green gradient prefix, and semantic action colors. Existing catalogs need the supplied restyled `rcsupport.yml` applied separately. No live deployment, restart, message or thread deletion was performed here.
 
 Verification: 31 bot tests and 20 focused bridge tests passed, including closure persistence/retries, tag transitions, permission checks, delete confirmation/cancellation/timeout, and the real RCUI message loader. Subscription and in-game reply commands remain planning only.
+
+
+## Case history follow-up (1.0.8)
+
+Added `/bugreport history <id> [page]`, private five-entry pages with clickable navigation and access rechecks. The bot captures reporter/staff messages and imports older/missed messages from mapped threads in resumable batches, using Discord IDs for deduplication. Original timestamps, attachment URLs, and saved status changes are retained; backfill does not replay chat notifications. Full plugin suite: 38 tests passed. Bot suite: 35 passed. Both services require the source update; no live deployment/restart was performed. Subscription and in-game reply commands remain planning only. Read the README for legacy matching, permissions and import limitations.

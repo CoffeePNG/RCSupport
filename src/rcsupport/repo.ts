@@ -63,3 +63,16 @@ export function recordThreadDeleted(id: string, actor: string): void {
 export function closureNotice(key: string): ClosureNotice | undefined {
   return db.prepare("SELECT * FROM rcsupport_closure_notices WHERE event_key = ?").get(key) as ClosureNotice | undefined;
 }
+
+export interface HistoryCursor { last_seen: string; before_id: string | null; sweep_high: string | null }
+export function historyCursor(postId: string): HistoryCursor {
+  return (db.prepare("SELECT * FROM rcsupport_history_sync WHERE post_id = ?").get(postId) as HistoryCursor | undefined)
+    ?? {last_seen: "0", before_id: null, sweep_high: null};
+}
+export function saveHistoryCursor(postId: string, cursor: HistoryCursor): void {
+  db.prepare("INSERT INTO rcsupport_history_sync(post_id, last_seen, before_id, sweep_high, checked_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(post_id) DO UPDATE SET last_seen=excluded.last_seen, before_id=excluded.before_id, sweep_high=excluded.sweep_high, checked_at=excluded.checked_at")
+    .run(postId, cursor.last_seen, cursor.before_id, cursor.sweep_high, Date.now());
+}
+export function historyCandidates(): PostMapping[] {
+  return (db.prepare("SELECT p.* FROM rcsupport_posts p LEFT JOIN rcsupport_history_sync h ON h.post_id = p.discord_post_id LEFT JOIN rcsupport_deleted_threads d ON d.post_id = p.discord_post_id WHERE p.plugin_ticket_id IS NOT NULL AND p.api_acknowledged = 1 AND d.post_id IS NULL ORDER BY COALESCE(h.checked_at, 0), p.discord_post_id LIMIT 5").all() as any[]).map(row => mapping(row)!);
+}

@@ -49,13 +49,16 @@ export class BridgeClient {
     return this.request("POST", `/api/v1/tickets/${id}/status-sync`, { revision });
   }
   ticket(id: number): Promise<{ ticket: PluginTicket; messages: unknown[]; revision: number }> {
-    return this.request("GET", `/api/v1/tickets/${id}`);
+    return this.request("GET", `/api/v1/tickets/${id}?include_messages=false`);
   }
   setPost(id: number, postId: string): Promise<PluginTicket> {
     return this.request("POST", `/api/v1/tickets/${id}/post`, { post_id: postId });
   }
   status(id: number, status: TicketStatus, actor?: string, expectedRevision?: number): Promise<PluginTicket> {
     return this.request("PATCH", `/api/v1/tickets/${id}/status`, { status, ...(actor ? { actor } : {}), ...(expectedRevision === undefined ? {} : { expected_revision: expectedRevision }) });
+  }
+  importHistory(id: number, message: { post_id: string; message_id: string; author: string; body: string; created_at: number; notify: boolean }): Promise<{inserted: boolean}> {
+    return this.request("POST", `/api/v1/tickets/${id}/history`, message);
   }
   reply(id: number, author: string, body: string): Promise<unknown> {
     return this.request("POST", `/api/v1/tickets/${id}/reply`, { author, body });
