@@ -7,6 +7,8 @@ export const STATUS_PRESENTATION: Record<TicketStatus, { name: string; emoji: st
   resolved: { name: "Resolved", emoji: "✅" },
   wontfix: { name: "Won’t Fix", emoji: "⛔" },
 };
+export const CLOSED_TAG_NAME = "Closed";
+export const isClosed = (status: TicketStatus): boolean => status === "resolved" || status === "wontfix";
 export function statusKey(name: string): TicketStatus | undefined {
   return STATUSES.find(key => key === name || STATUS_PRESENTATION[key].name === name);
 }
@@ -16,6 +18,8 @@ export function planStatusTags(tags: readonly Tag[]) {
     if (tags.filter(tag => statusKey(tag.name) === status).length > 1)
       throw new Error(`Ambiguous RCSupport tags for ${status}. Resolve the duplicate tags before setup; no tags were changed.`);
   }
+  const closed = tags.filter(tag => tag.name === CLOSED_TAG_NAME);
+  if (closed.length > 1) throw new Error("Ambiguous Closed tags. Resolve duplicates before setup; no tags were changed.");
   let changed = false;
   const result: Array<{ id?: string; name: string; moderated: boolean; emoji: { id: string | null; name: string | null } | null }> = tags.map(tag => {
     const key = statusKey(tag.name);
@@ -29,6 +33,9 @@ export function planStatusTags(tags: readonly Tag[]) {
     changed = true;
     result.push({ name: STATUS_PRESENTATION[status].name, moderated: false, emoji: { id: null, name: STATUS_PRESENTATION[status].emoji } });
   }
+  if (!closed.length) {
+    changed = true; result.push({ name: CLOSED_TAG_NAME, moderated: false, emoji: { id: null, name: "🔒" } });
+  }
   if (result.length > 20) throw new Error("The bug Forum has no room for missing status tags. Remove unused tags and retry setup.");
   return { changed, tags: result };
 }
@@ -38,7 +45,13 @@ export function statusTagId(tags: readonly { id: string; name: string }[], statu
   return matches[0].id;
 }
 export function replaceStatusTag(tags: readonly { id: string; name: string }[], applied: readonly string[], status: TicketStatus): string[] {
-  const custom = applied.filter(id => !tags.some(tag => tag.id === id && statusKey(tag.name)));
-  if (custom.length >= 5) throw new Error("Post has five custom tags; no room for its status tag. Custom tags were preserved.");
-  return [...custom, statusTagId(tags, status)];
+  const custom = applied.filter(id => !tags.some(tag => tag.id === id && (statusKey(tag.name) || tag.name === CLOSED_TAG_NAME)));
+  const statusTags = [statusTagId(tags, status)];
+  if (isClosed(status)) {
+    const closed = tags.filter(tag => tag.name === CLOSED_TAG_NAME);
+    if (closed.length !== 1) throw new Error("Missing or ambiguous Closed tag; run /bugreport setup.");
+    statusTags.push(closed[0].id);
+  }
+  if (custom.length + statusTags.length > 5) throw new Error("Post has too many custom tags for its status and Closed tags. Custom tags were preserved.");
+  return [...custom, ...statusTags];
 }

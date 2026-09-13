@@ -88,6 +88,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_todos_guild_status ON todos (guild_id, status);
   CREATE INDEX IF NOT EXISTS idx_todos_guild_assignee ON todos (guild_id, assignee_id);
 
+CREATE TABLE IF NOT EXISTS rcsupport_closure_notices (
+  event_key TEXT PRIMARY KEY, post_id TEXT NOT NULL, actor TEXT NOT NULL, closed_at INTEGER NOT NULL,
+  message_id TEXT, attempted_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS rcsupport_deleted_threads (post_id TEXT PRIMARY KEY, deleted_by TEXT NOT NULL, deleted_at INTEGER NOT NULL);
+
   CREATE TABLE IF NOT EXISTS rcsupport_posts (
     discord_post_id TEXT PRIMARY KEY,
     plugin_ticket_id INTEGER UNIQUE,

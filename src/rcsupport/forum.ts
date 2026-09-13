@@ -1,5 +1,6 @@
+import { setTimeout as delay } from "node:timers/promises";
 import {
-  ChannelType, Client, EmbedBuilder, ForumChannel, Message, ThreadChannel, PermissionFlagsBits,
+  ChannelType, Client, EmbedBuilder, ForumChannel, Message, ThreadChannel, PermissionFlagsBits, AuditLogEvent,
 } from "discord.js";
 import { getLeads, getTicketType } from "../db/ticketConfigRepo";
 import { AlertModeCache, BridgeClient } from "./api";
@@ -10,8 +11,9 @@ import { shouldCreatePost, shouldForwardReply, shouldSyncStatus } from "./policy
 import { db } from "../db/connect";
 import { subscribeReports } from "./events";
 import { reportEmbedBatches } from "./reportEmbeds";
-import { planStatusTags, statusTagId, replaceStatusTag } from "./statusTags";
+import { planStatusTags, statusTagId, replaceStatusTag, isClosed } from "./statusTags";
 import { StatusUpdate } from "./types";
+import { deliverClosure } from "./closureNotice";
 
 export class RCSupportForum {
   readonly api: BridgeClient;
@@ -159,6 +161,28 @@ export class RCSupportForum {
         }
       } catch (error) { this.reportSyncError(0, "read pending status updates (update the plugin as well as the bot)", error); }
       for (const [key, expiry] of this.ownTagUpdates) if (expiry < Date.now()) this.ownTagUpdates.delete(key);
+      for (const notice of repo.pendingClosures()) {
+        try {
+          if (repo.threadDeleted(notice.post_id)) { repo.completeClosure(notice.event_key, "thread-deleted"); continue; }
+          await this.serial(notice.post_id, async () => {
+            if (repo.threadDeleted(notice.post_id)) return;
+            const thread = await this.getForum().threads.fetch(notice.post_id);
+            if (!thread || thread.parentId !== this.getForum().id) throw new Error("Closure thread is unavailable");
+            // Native reports have no plugin outbox to retry a failed Closed-label edit.
+            if (repo.byPost(notice.post_id)?.pluginTicketId === null) {
+              const selected = STATUSES.filter(status => thread.appliedTags.includes(this.tag(status)));
+              if (selected.length === 1) {
+                const tags = replaceStatusTag(this.getForum().availableTags, thread.appliedTags, selected[0]);
+                if (this.tagSignature(thread.id, tags) !== this.tagSignature(thread.id, thread.appliedTags)) {
+                  this.ownTagUpdates.set(this.tagSignature(thread.id, tags), Date.now() + 300000);
+                  await thread.setAppliedTags(tags, "Retry RCSupport Closed label");
+                }
+              }
+            }
+            await deliverClosure(thread, notice);
+          });
+        } catch (error) { this.reportSyncError(0, "deliver closure message for thread " + notice.post_id, error); }
+      }
       await this.acknowledgePending();
       // The bot and Minecraft can have different clocks. Reconcile all open reports;
       // persisted mappings below prevent duplicate Forum posts.
@@ -209,7 +233,9 @@ export class RCSupportForum {
       await this.createPluginPost(ticket);
       postId = repo.byPluginTicket(ticket.id)!.discordPostId;
     }
+    if (repo.threadDeleted(postId)) { await this.api.acknowledgeStatus(ticket.id, update.revision); return; }
     await this.serial(postId, async () => {
+      if (repo.threadDeleted(postId!)) { await this.api.acknowledgeStatus(ticket.id, update.revision); return; }
       // A newer in-game transition supersedes this snapshot; never acknowledge that newer revision.
       const current = await this.api.ticket(ticket.id);
       if (current.revision !== update.revision) { this.pollAgain = true; return; }
@@ -221,6 +247,10 @@ export class RCSupportForum {
         // Retain until the gateway echo arrives, including echoes delayed until after another transition.
         this.ownTagUpdates.set(this.tagSignature(postId!, tags), Date.now() + 300000);
         await thread.setAppliedTags(tags, "Synchronize saved RCSupport report status");
+      }
+      for (const closure of update.closures ?? []) {
+        const notice = repo.queueClosure(`plugin:${ticket.id}:${closure.id}`, postId!, closure.actor || "Unknown staff member", closure.closed_at);
+        await deliverClosure(thread, notice);
       }
       const ack = await this.api.acknowledgeStatus(ticket.id, update.revision);
       if (!ack.acknowledged) this.pollAgain = true;
@@ -260,7 +290,7 @@ export class RCSupportForum {
     const batches = reportEmbedBatches(ticket);
     const post = await this.getForum().threads.create({
       name: `#${ticket.id} ${ticket.title || ticket.description}`.replace(/\s+/g, " ").slice(0, 100),
-      appliedTags: [this.tag(ticket.status ?? "open")],
+      appliedTags: replaceStatusTag(this.getForum().availableTags, [], ticket.status ?? "open"),
       message: {
         content: leads.map((id) => `<@${id}>`).join(" ") || undefined,
         embeds: batches[0],
@@ -290,6 +320,45 @@ export class RCSupportForum {
     return post;
   }
 
+  async deletionTarget(guildId: string, postId: string, actorId: string): Promise<ThreadChannel> {
+    const forum = this.getForum();
+    if (guildId !== forum.guildId) throw new Error("Use this command in the configured bug Forum's server.");
+    const member = await forum.guild.members.fetch({ user: actorId, force: true });
+    if (!member.permissions.has(PermissionFlagsBits.ManageGuild) || !member.permissions.has(PermissionFlagsBits.ManageThreads))
+      throw new Error("Manage Server and Manage Threads are required.");
+    const thread = await forum.threads.fetch(postId);
+    if (!thread || thread.parentId !== forum.id || !repo.byPost(postId)) throw new Error("Choose a tracked RCSupport report thread in the configured Forum.");
+    if (!thread.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageThreads])) throw new Error("You need View Channel and Manage Threads in this report thread.");
+    if (!thread.client.user || !thread.permissionsFor(thread.client.user)?.has(PermissionFlagsBits.ManageThreads)) throw new Error("The bot needs permission to delete this thread (Manage Threads).");
+    return thread;
+  }
+  async deleteReportThread(guildId: string, postId: string, actorId: string): Promise<void> {
+    await this.serial(postId, async () => {
+      const thread = await this.deletionTarget(guildId, postId, actorId);
+      await thread.delete(`RCSupport thread deletion confirmed by ${actorId}`);
+      repo.recordThreadDeleted(postId, actorId);
+    });
+  }
+
+  private async closingActor(thread: ThreadChannel, newTags: readonly string[]): Promise<{ name: string; time: number; key: string }> {
+    const now = Date.now();
+    try {
+      for (const wait of [0, 350, 850]) {
+        if (wait) await delay(wait);
+        const logs = await thread.guild.fetchAuditLogs({ type: AuditLogEvent.ThreadUpdate, limit: 10 });
+        const candidates = logs.entries.filter(entry => entry.target?.id === thread.id && Math.abs(now - entry.createdTimestamp) < 30000 &&
+          (entry.changes as ReadonlyArray<{key: string; new?: unknown}>).some(change => change.key === "applied_tags" && Array.isArray(change.new) &&
+            [...change.new].map((tag: any) => typeof tag === "string" ? tag : tag.id).sort().join(",") === [...newTags].sort().join(",")));
+        if (candidates.size === 1) {
+          const entry = candidates.first()!;
+          if (entry.executor?.username) return { name: entry.executor.username, time: Math.floor(entry.createdTimestamp / 1000), key: entry.id };
+        }
+      }
+    } catch { /* No audit-log permission or entry yet: do not invent an actor. */ }
+    console.warn(`RCSupport could not identify the closer of thread ${thread.id}; View Audit Log is needed for Discord-side attribution.`);
+    return { name: "Unknown staff member", time: Math.floor(now / 1000), key: `${thread.id}:${now}` };
+  }
+
   private async onMessage(message: Message): Promise<void> {
     if (!message.channel.isThread() || message.channel.parentId !== this.config.forumChannelId) return;
     const mapped = repo.byPost(message.channelId);
@@ -303,7 +372,7 @@ export class RCSupportForum {
     if (newThread.parentId !== this.config.forumChannelId) return;
     if (oldThread.appliedTags.join(",") === newThread.appliedTags.join(",")) return;
     const mapped = repo.byPost(newThread.id);
-    if (!shouldSyncStatus(mapped)) return;
+    if (!mapped || repo.threadDeleted(newThread.id)) return;
     const selected = STATUSES.filter((status) => newThread.appliedTags.includes(this.tag(status)));
     if (selected.length !== 1) { console.warn(`RCSupport post ${newThread.id} must have exactly one status tag`); return; }
     const previous = STATUSES.filter((status) => oldThread.appliedTags.includes(this.tag(status)));
@@ -311,13 +380,25 @@ export class RCSupportForum {
     const echo = this.tagSignature(newThread.id, newThread.appliedTags);
     if ((this.ownTagUpdates.get(echo) ?? 0) >= Date.now()) { this.ownTagUpdates.delete(echo); return; }
     await this.serial(newThread.id, async () => {
+      const closes = previous.length === 1 && !isClosed(previous[0]) && isClosed(selected[0]);
+      const actor = closes ? await this.closingActor(newThread, newThread.appliedTags) : null;
+      if (!shouldSyncStatus(mapped)) {
+        if (actor) repo.queueClosure(`native:${actor.key}`, newThread.id, actor.name, actor.time);
+        const tags = replaceStatusTag(this.getForum().availableTags, newThread.appliedTags, selected[0]);
+        if (this.tagSignature(newThread.id, tags) !== this.tagSignature(newThread.id, newThread.appliedTags)) {
+          this.ownTagUpdates.set(this.tagSignature(newThread.id, tags), Date.now() + 300000);
+          await newThread.setAppliedTags(tags, "Update RCSupport Closed label");
+        }
+        if (actor) await deliverClosure(newThread, repo.queueClosure(`native:${actor.key}`, newThread.id, actor.name, actor.time));
+        return;
+      }
       const current = await this.api.ticket(mapped!.pluginTicketId!);
       if (current.ticket.status === selected[0]) return;
       if (previous.length !== 1 || previous[0] !== current.ticket.status) {
         void this.poll().catch(e => console.error("RCSupport concurrent status reconciliation failed:", e)); return;
       }
       // Compare-and-set prevents a delayed Discord change overwriting a newer in-game decision.
-      await this.api.status(mapped!.pluginTicketId!, selected[0], undefined, current.revision);
+      await this.api.status(mapped!.pluginTicketId!, selected[0], actor?.name, current.revision);
     });
   }
 }

@@ -4,6 +4,7 @@ import {
 } from "discord.js";
 import { db } from "../../db/connect";
 import { Command } from "../types";
+import { confirmThreadDeletion } from "../../rcsupport/deleteThread";
 
 export const BUGTHREAD_BUTTON_ID = "rcsupport:open";
 export const BUGTHREAD_MODAL_ID = "rcsupport:submit";
@@ -17,6 +18,8 @@ function panelCommand(name: "bugreport" | "br"): Command {
     .addSubcommand((sub) => sub.setName("setup").setDescription("Assign the bug Forum and create missing status tags")
       .addChannelOption((option) => option.setName("channel").setDescription("Bug report Forum in this server")
         .addChannelTypes(ChannelType.GuildForum).setRequired(true)))
+    .addSubcommand((sub) => sub.setName("delete").setDescription("Delete a report thread after confirmation; retain the saved report")
+      .addStringOption(option => option.setName("thread").setDescription("Report thread ID; defaults to the thread you are in")))
     .addSubcommand((sub) => sub.setName("refresh").setDescription("Restore a Minecraft report's saved details in its existing post")
       .addIntegerOption((option) => option.setName("report").setDescription("Minecraft report number")
         .setMinValue(1).setRequired(true)))
@@ -29,6 +32,9 @@ function panelCommand(name: "bugreport" | "br"): Command {
     }
     if (!forum) {
       await interaction.reply({ content: "The support bridge is unavailable.", flags: MessageFlags.Ephemeral }); return;
+    }
+    if (interaction.options.getSubcommand() === "delete") {
+      await confirmThreadDeletion(interaction, forum); return;
     }
     if (interaction.options.getSubcommand() === "refresh") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -53,7 +59,7 @@ function panelCommand(name: "bugreport" | "br"): Command {
       const sync = forum.lastSyncError
         ? `Forum setup is saved, but report synchronization needs attention: ${forum.lastSyncError}`
         : "Report synchronization is running.";
-      await interaction.editReply({ content: `Bug reports now use <#${option.id}>. All five status tags are ready. ${sync}` });
+      await interaction.editReply({ content: `Bug reports now use <#${option.id}>. Status tags and the Closed label are ready. ${sync}` });
       return;
     }
     if (forum.getForum().guildId !== interaction.guildId) {
@@ -66,7 +72,7 @@ function panelCommand(name: "bugreport" | "br"): Command {
     const embed = new EmbedBuilder().setTitle("Staff Bug Reports")
       .setDescription("Open a bug report in the staff Forum channel.");
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(BUGTHREAD_BUTTON_ID).setLabel("Open Bug Report").setStyle(ButtonStyle.Primary));
+      new ButtonBuilder().setCustomId(BUGTHREAD_BUTTON_ID).setLabel("Open Bug Report").setStyle(ButtonStyle.Success));
     const previous = db.prepare("SELECT channel_id, message_id FROM rcsupport_panel WHERE guild_id = ?")
       .get(interaction.guildId) as { channel_id: string; message_id: string } | undefined;
     let posted;

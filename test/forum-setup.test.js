@@ -7,7 +7,13 @@ const db = new DatabaseSync(':memory:');
 db.exec(`CREATE TABLE rcsupport_forum_settings (singleton INTEGER PRIMARY KEY, guild_id TEXT, channel_id TEXT);
 CREATE TABLE rcsupport_posts (discord_post_id TEXT PRIMARY KEY, plugin_ticket_id INTEGER UNIQUE, reporter_discord_id TEXT, api_acknowledged INTEGER DEFAULT 0);
 CREATE TABLE rcsupport_poll_state (singleton INTEGER PRIMARY KEY, last_poll_timestamp INTEGER);
-INSERT INTO rcsupport_poll_state VALUES (1, 9999999999);`);
+INSERT INTO rcsupport_poll_state VALUES (1, 9999999999);
+CREATE TABLE IF NOT EXISTS rcsupport_closure_notices (
+  event_key TEXT PRIMARY KEY, post_id TEXT NOT NULL, actor TEXT NOT NULL, closed_at INTEGER NOT NULL,
+  message_id TEXT, attempted_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS rcsupport_deleted_threads (post_id TEXT PRIMARY KEY, deleted_by TEXT NOT NULL, deleted_at INTEGER NOT NULL);
+`);
 after(() => db.close());
 require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
 require.cache[require.resolve('../dist/rcsupport/events')] = { exports: { subscribeReports: () => () => {} } };
@@ -50,7 +56,7 @@ test('Forum setup preserves tags, persists selection, and rejects another guild'
   restored.poll = async () => {};
   try {
     await service.setup(client, 'guild', 'forum');
-    assert.equal(channel.availableTags.length, 6);
+    assert.equal(channel.availableTags.length, 7);
     assert.deepEqual(channel.availableTags[0], original);
     await service.setup(client, 'guild', 'forum');
     assert.equal(edits, 1);
@@ -103,9 +109,9 @@ test('startup prepares a blank Forum without duplicating tags on restart', async
   service.poll = async () => {};
   try {
     await service.start(client);
-    assert.deepEqual(channel.availableTags.map(t => t.name), ['Open', 'Acknowledged', 'In Progress', 'Resolved', 'Won’t Fix']);
+    assert.deepEqual(channel.availableTags.map(t => t.name), ['Open', 'Acknowledged', 'In Progress', 'Resolved', 'Won’t Fix', 'Closed']);
     await service.start(client);
-    assert.equal(channel.availableTags.length, 5);
+    assert.equal(channel.availableTags.length, 6);
   } finally { service.stop(); }
 });
 
@@ -176,16 +182,16 @@ test('setup assigns a replacement Forum after deletion even when old reports exi
     assert.equal(service.getForum().id, 'replacement');
     assert.equal(db.prepare('SELECT channel_id FROM rcsupport_forum_settings WHERE singleton = 1').get().channel_id, 'replacement');
     assert.equal(db.prepare('SELECT COUNT(*) AS total FROM rcsupport_posts').get().total, countBefore);
-    assert.equal(channel.availableTags.length, 5);
+    assert.equal(channel.availableTags.length, 6);
     await service.setup(client, 'guild', 'replacement');
-    assert.equal(channel.availableTags.length, 5);
+    assert.equal(channel.availableTags.length, 6);
   } finally { service.stop(); }
 });
 
 
 test('closed status updates retry failed/deleted posts without blocking others or losing custom tags', async () => {
   const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
-  const statuses = ['Open','Acknowledged','In Progress','Resolved','Won’t Fix'];
+  const statuses = ['Open','Acknowledged','In Progress','Resolved','Won’t Fix','Closed'];
   const pending = [301,302].map(id => ({ revision: 1, ticket: { id, status: 'resolved', discord_post_id: `mapped${id}`, discord_id: '123' } }));
   const acks = [], edits = [];
   let unavailable = true;
@@ -201,7 +207,7 @@ test('closed status updates retry failed/deleted posts without blocking others o
   service.api.ticket = async id => ({ ticket: pending.find(u => u.ticket.id === id).ticket, revision: 1 });
   service.api.acknowledgeStatus = async (id, revision) => { assert.equal(revision, 1); acks.push(id); return { acknowledged: true }; };
   await service.poll(); assert.deepEqual(acks, [302]); assert.match(service.lastSyncError, /#301/);
-  assert.deepEqual(edits, [['mapped302', ['custom','s3']]]);
+  assert.deepEqual(edits, [['mapped302', ['custom','s3','s5']]]);
   unavailable = false;
   await service.poll(); assert.deepEqual(acks, [302,301]); assert.equal(service.lastSyncError, null);
   await service.poll(); assert.equal(edits.length, 2);
@@ -212,7 +218,7 @@ test('a failed acknowledgement retries without another tag edit', async () => {
   const ticket = { id: 303, discord_id: '123', status: 'resolved', discord_post_id: 'mapped303' };
   let edits = 0, acknowledgements = 0;
   const thread = { parentId: 'forum', appliedTags: ['s0'], async setAppliedTags(tags) { edits++; this.appliedTags = tags; } };
-  service.forum = { id: 'forum', availableTags: [{id:'s0',name:'Open'},{id:'s3',name:'Resolved'}], threads: {fetch:async () => thread} };
+  service.forum = { id: 'forum', availableTags: [{id:'s0',name:'Open'},{id:'s3',name:'Resolved'},{id:'s5',name:'Closed'}], threads: {fetch:async () => thread} };
   service.api.ticket = async () => ({ticket, revision: 2});
   service.api.acknowledgeStatus = async () => { if (++acknowledgements === 1) throw new Error('Network interrupted'); return {acknowledged:true}; };
   await assert.rejects(service.syncStatusUpdate({ticket, revision:2}), /Network/);
@@ -223,8 +229,9 @@ test('a failed acknowledgement retries without another tag edit', async () => {
 test('Discord status changes use revision checks and ignore delayed bot echoes', async () => {
   db.prepare('INSERT INTO rcsupport_posts VALUES (?, ?, ?, 1)').run('mapped304',304,'reporter');
   const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost') });
-  service.forum = {id:'forum', availableTags: ['Open','Acknowledged','In Progress','Resolved','Won’t Fix'].map((name,i) => ({id:`s${i}`,name}))};
+  service.forum = {id:'forum', availableTags: ['Open','Acknowledged','In Progress','Resolved','Won’t Fix','Closed'].map((name,i) => ({id:`s${i}`,name}))};
   let statusCalls = [], polls = 0;
+  service.closingActor = async () => ({name:'Developer',time:123,key:'audit'});
   service.api.ticket = async () => ({ticket:{id:304,status:'open'},revision:7});
   service.api.status = async (...args) => {statusCalls.push(args);};
   service.poll = async () => { polls++; };
@@ -232,7 +239,7 @@ test('Discord status changes use revision checks and ignore delayed bot echoes',
   const updated = {...oldThread,appliedTags:['s3']};
   service.ownTagUpdates.set(service.tagSignature(updated.id,updated.appliedTags),Date.now()+300000);
   await service.onThreadUpdate(oldThread,updated); assert.equal(statusCalls.length,0);
-  await service.onThreadUpdate(oldThread,updated); assert.deepEqual(statusCalls,[[304,'resolved',undefined,7]]);
+  await service.onThreadUpdate(oldThread,updated); assert.deepEqual(statusCalls,[[304,'resolved','Developer',7]]);
   service.api.ticket = async () => ({ticket:{id:304,status:'in_progress'},revision:8});
   await service.onThreadUpdate(oldThread,updated); assert.equal(statusCalls.length,1); assert.equal(polls,1);
 });
@@ -255,4 +262,103 @@ test('batched recovery advances past failures in the first page', async () => {
   service.api.tickets = async () => [];
   service.syncStatusUpdate = async u => { attempted.push(u.ticket.id); if(u.ticket.id===1) throw new Error('Missing post'); };
   await service.poll(); assert.deepEqual(cursors,[0,50]); assert.equal(attempted.length,52); assert.equal(attempted.at(-1),52);
+});
+
+const { Collection, PermissionFlagsBits, ButtonStyle } = require('discord.js');
+const repo = require('../dist/rcsupport/repo');
+const { closureContent, deliverClosure } = require('../dist/rcsupport/closureNotice');
+const { confirmThreadDeletion } = require('../dist/rcsupport/deleteThread');
+const completeTags = ['Open','Acknowledged','In Progress','Resolved','Won’t Fix','Closed'].map((name,i)=>({id:`s${i}`,name}));
+function closureThread(id) {
+  const messages = new Collection();
+  return { id, parentId:'forum', appliedTags:['s0'], client:{user:{id:'bot'}},
+    messages:{fetch:async()=>messages}, sent:0,
+    async setAppliedTags(tags) {this.appliedTags=tags;},
+    async send(payload) { this.sent++; assert.deepEqual(payload.allowedMentions,{parse:[]}); assert.equal(payload.enforceNonce,true);
+      const message={id:String(10000000000000000n+BigInt(this.sent)),author:{id:'bot'},content:payload.content,createdTimestamp:Date.now()};
+      messages.set(message.id,message); return message; }
+  };
+}
+test('closure notices strip UUIDs, escape names and preserve timestamp formats', () => {
+  assert.equal(closureContent('Builder (550e8400-e29b-41d4-a716-446655440000)',1234),'This report has been closed by **Builder** - <t:1234:T> · <t:1234:d>');
+  assert.match(closureContent('bad**name\nnext',1234),/bad\\\*\\\*name next/);
+});
+test('closure delivery recovers an uncertain send and ignores stale notice snapshots', async () => {
+  const thread=closureThread('uncertain');
+  const notice=repo.queueClosure('test-uncertain',thread.id,'Builder',1234);
+  const send=thread.send.bind(thread);
+  thread.send=async payload=>{await send(payload);throw new Error('Response lost');};
+  await assert.rejects(deliverClosure(thread,notice),/Response lost/);
+  thread.send=send;
+  await deliverClosure(thread,notice);
+  await deliverClosure(thread,notice);
+  assert.equal(thread.sent,1); assert.ok(repo.closureNotice(notice.event_key).message_id);
+});
+test('plugin closure announcements are delivered once across failed acknowledgements', async () => {
+  const service=new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  const thread=closureThread('mapped401');
+  const ticket={id:401,status:'resolved',discord_id:'reporter',discord_post_id:thread.id};
+  const update={ticket,revision:2,closures:[{id:1,revision:2,actor:'Builder',closed_at:1234}]};
+  service.forum={id:'forum',availableTags:completeTags,threads:{fetch:async()=>thread}};
+  service.api.ticket=async()=>({ticket,revision:2});
+  let acks=0; service.api.acknowledgeStatus=async()=>{if(++acks===1)throw new Error('Ack lost');return {acknowledged:true};};
+  await assert.rejects(service.syncStatusUpdate(update),/Ack lost/);
+  await service.syncStatusUpdate(update);
+  assert.deepEqual(thread.appliedTags,['s3','s5']);assert.equal(thread.sent,1);assert.equal(acks,2);
+});
+test('native closure retries its label and message, and reopening removes Closed', async () => {
+  const service=new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  const thread=closureThread('native501');repo.storeNativePost(thread.id);
+  service.forum={id:'forum',availableTags:completeTags,threads:{fetch:async()=>thread}};
+  service.api.tickets=async()=>[];service.api.statusUpdates=async()=>[];
+  service.closingActor=async()=>({name:'Developer',time:1234,key:'audit501'});
+  const old={...thread,appliedTags:['s0']};thread.appliedTags=['s3'];
+  const set=thread.setAppliedTags.bind(thread);thread.setAppliedTags=async()=>{throw new Error('Transient tag failure');};
+  await assert.rejects(service.onThreadUpdate(old,thread),/Transient/);assert.equal(thread.sent,0);
+  thread.setAppliedTags=set;await service.poll();
+  assert.deepEqual(thread.appliedTags,['s3','s5']);assert.equal(thread.sent,1);
+  const closed={...thread,appliedTags:[...thread.appliedTags]};thread.appliedTags=['s0','s5'];
+  await service.onThreadUpdate(closed,thread);assert.deepEqual(thread.appliedTags,['s0']);assert.equal(thread.sent,1);
+});
+test('Discord closure actor requires a unique matching audit entry', async () => {
+  const service=new RCSupportForum({baseUrl:new URL('https://localhost')});
+  const entry={id:'audit',target:{id:'thread'},executor:{username:'Nick'},createdTimestamp:Date.now(),changes:[{key:'applied_tags',new:['s3']}]};
+  const thread={id:'thread',guild:{fetchAuditLogs:async()=>({entries:new Collection([['audit',entry]])})}};
+  assert.equal((await service.closingActor(thread,['s3'])).name,'Nick');
+  assert.equal((await service.closingActor(thread,['s0'])).name,'Unknown staff member');
+});
+test('deletion checks both permissions and the exact tracked Forum, preserving mapping and suppressing recreation', async () => {
+  const service=new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  const thread=closureThread('delete601');let deleted=false;
+  const rights=new Set([PermissionFlagsBits.ManageGuild,PermissionFlagsBits.ManageThreads]);
+  thread.permissionsFor=()=>({has:()=>true});thread.delete=async()=>{deleted=true;};
+  repo.storePluginPost(601,thread.id,'reporter');repo.acknowledge(thread.id);
+  service.forum={id:'forum',guildId:'guild',guild:{members:{fetch:async()=>({permissions:{has:p=>rights.has(p)}})}},threads:{fetch:async()=>deleted?null:thread}};
+  await assert.rejects(service.deletionTarget('other',thread.id,'admin'),/configured/);
+  rights.delete(PermissionFlagsBits.ManageThreads);
+  await assert.rejects(service.deleteReportThread('guild',thread.id,'admin'),/Manage Server and Manage Threads/);assert.equal(deleted,false);
+  rights.add(PermissionFlagsBits.ManageThreads);thread.parentId='unrelated';
+  await assert.rejects(service.deleteReportThread('guild',thread.id,'admin'),/tracked/);thread.parentId='forum';
+  repo.queueClosure('delete-pending',thread.id,'Nick',1234);
+  await service.deleteReportThread('guild',thread.id,'admin');
+  assert.equal(deleted,true);assert.ok(repo.threadDeleted(thread.id));assert.ok(repo.byPluginTicket(601));
+  assert.equal(repo.closureNotice('delete-pending').message_id,'thread-deleted');
+  service.api.acknowledgeStatus=async()=>({acknowledged:true});
+  await service.syncStatusUpdate({ticket:{id:601,discord_post_id:thread.id},revision:3});
+  await assert.rejects(service.deleteReportThread('guild',thread.id,'admin'),/tracked/);
+});
+for(const choice of ['confirm','cancel','timeout']) test(`thread deletion confirmation: ${choice}`,async()=>{
+  let deletes=0,updates=[];
+  const interaction={id:'interaction',guildId:'guild',channelId:'123456789012345678',user:{id:'admin'},options:{getString:()=>null},
+    deferReply:async()=>{},editReply:async payload=>{updates.push(payload);return {awaitMessageComponent:async options=>{
+      assert.equal(options.filter({user:{id:'other'},customId:'rcsupport:delete:interaction'}),false);
+      assert.equal(options.filter({user:{id:'admin'},customId:'unrelated'}),false);
+      if(choice==='timeout')throw new Error('Timeout');
+      return {customId:choice==='confirm'?'rcsupport:delete:interaction':'rcsupport:keep:interaction',update:async p=>updates.push(p)};
+    }};}};
+  const forum={deletionTarget:async()=>({name:'Report'}),deleteReportThread:async(guild,id,user)=>{assert.equal(guild,'guild');assert.equal(id,interaction.channelId);assert.equal(user,'admin');deletes++;}};
+  await confirmThreadDeletion(interaction,forum);
+  assert.equal(deletes,choice==='confirm'?1:0);
+  assert.equal(updates[0].components[0].toJSON().components[0].style,ButtonStyle.Danger);
+  assert.deepEqual(updates.at(-1).components,[]);
 });

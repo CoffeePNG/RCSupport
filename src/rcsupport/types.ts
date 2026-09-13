@@ -24,7 +24,8 @@ export interface PluginTicket {
   updated_at: number;
 }
 
-export interface StatusUpdate { ticket: PluginTicket; revision: number }
+export interface ReportClosure { id: number; revision: number; actor?: string | null; closed_at: number }
+export interface StatusUpdate { ticket: PluginTicket; revision: number; closures?: ReportClosure[] }
 
 export interface PostMapping {
   discordPostId: string;
