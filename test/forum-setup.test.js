@@ -1,10 +1,14 @@
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { ChannelType } = require('discord.js');
 // Exercise persistence with SQLite without requiring the production native addon.
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(':memory:');
-db.exec('CREATE TABLE rcsupport_forum_settings (singleton INTEGER PRIMARY KEY, guild_id TEXT, channel_id TEXT); CREATE TABLE rcsupport_posts (discord_post_id TEXT);');
+db.exec(`CREATE TABLE rcsupport_forum_settings (singleton INTEGER PRIMARY KEY, guild_id TEXT, channel_id TEXT);
+CREATE TABLE rcsupport_posts (discord_post_id TEXT PRIMARY KEY, plugin_ticket_id INTEGER UNIQUE, reporter_discord_id TEXT, api_acknowledged INTEGER DEFAULT 0);
+CREATE TABLE rcsupport_poll_state (singleton INTEGER PRIMARY KEY, last_poll_timestamp INTEGER);
+INSERT INTO rcsupport_poll_state VALUES (1, 9999999999);`);
+after(() => db.close());
 require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
 const { RCSupportForum } = require('../dist/rcsupport/forum');
 
@@ -34,6 +38,31 @@ test('Forum setup preserves tags, persists selection, and rejects another guild'
     assert.equal(restored.getForum().id, 'forum');
     await assert.rejects(service.setup(client, 'other-guild', 'forum'), /current Forum/);
   } finally {
-    service.stop(); restored.stop(); db.close();
+    service.stop(); restored.stop();
   }
+});
+
+test('poll finds reports despite a future saved cursor and does not create duplicate posts', async () => {
+  const service = new RCSupportForum({ forumChannelId: 'forum', baseUrl: new URL('https://localhost'),
+    token: 'test', pollIntervalMs: 20000, alertModeCacheMs: 60000 });
+  let creates = 0, acknowledgements = 0;
+  service.forum = {
+    id: 'forum', guildId: 'guild', availableTags: [{ id: 'open-tag', name: 'open' }],
+    threads: { create: async () => { creates++; return { id: 'new-post' }; } },
+  };
+  const ticket = { id: 7, description: 'Clock skew report', server_id: 'build1', discord_id: 'reporter',
+    world: null, x: null, y: null, z: null, discord_post_id: null, updated_at: 100 };
+  service.api.tickets = async (since) => {
+    assert.equal(since, 0);
+    return [ticket];
+  };
+  service.api.configMode = async () => ({ alert_mode: 'broadcast' });
+  service.api.setPost = async (id, post) => {
+    assert.equal(id, 7); assert.equal(post, 'new-post'); acknowledgements++; return ticket;
+  };
+  await service.poll();
+  await service.poll();
+  assert.equal(creates, 1);
+  assert.equal(acknowledgements, 1);
+  assert.equal(db.prepare('SELECT api_acknowledged FROM rcsupport_posts WHERE plugin_ticket_id = 7').get().api_acknowledged, 1);
 });

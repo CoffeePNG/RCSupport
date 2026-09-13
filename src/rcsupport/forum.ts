@@ -18,6 +18,7 @@ export class RCSupportForum {
   private timer: NodeJS.Timeout | null = null;
   private listening = false;
   private configuring = false;
+  private lastPollSummary = "";
 
   constructor(config: BridgeConfig) {
     this.config = config;
@@ -35,6 +36,7 @@ export class RCSupportForum {
     const missing = STATUSES.filter((status) => !channel.availableTags.some((tag) => tag.name === status));
     if (missing.length) throw new Error(`RCSupport Forum is missing status tags: ${missing.join(", ")}`);
     this.forum = channel;
+    console.log(`RCSupport Forum ready: guild=${channel.guildId} forum=${channel.id}; polling every ${this.config.pollIntervalMs}ms`);
     if (!this.listening) {
     client.on("messageCreate", (message) => { void this.onMessage(message).catch((e) => console.error("RCSupport reply sync failed:", e)); });
     client.on("threadUpdate", (oldThread, newThread) => {
@@ -116,20 +118,28 @@ export class RCSupportForum {
     this.polling = true;
     try {
       await this.acknowledgePending();
-      const startedAt = Math.floor(Date.now() / 1000);
-      const tickets = await this.api.tickets(repo.pollTimestamp());
+      // The bot and Minecraft can have different clocks. Reconcile all open reports;
+      // persisted mappings below prevent duplicate Forum posts.
+      const tickets = await this.api.tickets(0);
+      let created = 0, mapped = 0, restored = 0;
       for (const ticket of tickets) {
         const known = repo.byPluginTicket(ticket.id);
-        if (known) continue;
+        if (known) { mapped++; continue; }
         // Also respect the plugin's post ID if a previous bot instance created it.
         if (ticket.discord_post_id) {
           repo.storePluginPost(ticket.id, ticket.discord_post_id, ticket.discord_id);
           repo.acknowledge(ticket.discord_post_id);
+          restored++;
           continue;
         }
-        if (shouldCreatePost(known, ticket.discord_post_id)) await this.createPluginPost(ticket);
+        if (shouldCreatePost(known, ticket.discord_post_id)) {
+          await this.createPluginPost(ticket);
+          created++;
+        }
       }
-      repo.setPollTimestamp(startedAt);
+      const summary = `RCSupport poll OK: forum=${this.forum.id} received=${tickets.length} created=${created} already-mapped=${mapped} restored-mappings=${restored}`;
+      if (summary !== this.lastPollSummary) console.log(summary);
+      this.lastPollSummary = summary;
     } finally { this.polling = false; }
   }
 
