@@ -72,7 +72,7 @@ export async function handleInteraction(
         });
         return;
       }
-      await command.execute(interaction);
+      await command.execute(interaction, rcForum);
       return;
     }
 

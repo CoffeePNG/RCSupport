@@ -102,6 +102,10 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS rcsupport_panel (
     guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS rcsupport_forum_settings (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    guild_id TEXT NOT NULL, channel_id TEXT NOT NULL
+  );
 `);
 
 function ensureColumn(table: string, column: string, definition: string): void {

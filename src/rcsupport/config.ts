@@ -28,7 +28,7 @@ export function loadBridgeConfig(): BridgeConfig {
     throw new Error("RCSUPPORT_API_BASE_URL must be an HTTPS URL without credentials");
   const token = required("RCSUPPORT_API_TOKEN");
   const caPath = required("RCSUPPORT_API_CA_CERT_PATH");
-  const forumChannelId = required("RCSUPPORT_FORUM_CHANNEL_ID");
+  const forumChannelId = process.env.RCSUPPORT_FORUM_CHANNEL_ID?.trim() || "";
   let ca: Buffer;
   try { ca = fs.readFileSync(caPath); }
   catch (error) { throw new Error(`Cannot read RCSUPPORT_API_CA_CERT_PATH at ${caPath}: ${error}`); }

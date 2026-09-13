@@ -1,4 +1,5 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction } from "discord.js";
+import type { RCSupportForum } from "../rcsupport/forum";
 
 export interface Command {
   data: {
@@ -11,6 +12,6 @@ export interface Command {
    * it, so a stale registration in another guild still can't run it.
    */
   guildIds?: readonly string[];
-  execute(interaction: ChatInputCommandInteraction): Promise<void>;
+  execute(interaction: ChatInputCommandInteraction, forum?: RCSupportForum): Promise<void>;
   autocomplete?(interaction: AutocompleteInteraction): Promise<void>;
 }

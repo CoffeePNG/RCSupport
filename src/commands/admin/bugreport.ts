@@ -14,14 +14,33 @@ function panelCommand(name: "bugreport" | "br"): Command {
     .setName(name)
     .setDescription("Post the staff bug-report panel.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((sub) => sub.setName("setup").setDescription("Assign the bug Forum and create missing status tags")
+      .addChannelOption((option) => option.setName("channel").setDescription("Bug report Forum in this server")
+        .addChannelTypes(ChannelType.GuildForum).setRequired(true)))
     .addSubcommand((sub) => sub.setName("post").setDescription("Post or refresh the panel")
       .addChannelOption((option) => option.setName("channel").setDescription("Staff channel for the panel")
         .addChannelTypes(ChannelType.GuildText).setRequired(true))),
-  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  async execute(interaction: ChatInputCommandInteraction, forum): Promise<void> {
     if (!interaction.guildId || !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       await interaction.reply({ content: "Manage Server is required.", flags: MessageFlags.Ephemeral }); return;
     }
     const option = interaction.options.getChannel("channel", true);
+    if (!forum) {
+      await interaction.reply({ content: "The support bridge is unavailable.", flags: MessageFlags.Ephemeral }); return;
+    }
+    if (interaction.options.getSubcommand() === "setup") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try { await forum.setup(interaction.client, interaction.guildId, option.id); }
+      catch (error) {
+        await interaction.editReply({ content: error instanceof Error ? error.message : "Forum setup failed. Check the bot logs." });
+        return;
+      }
+      await interaction.editReply({ content: `Bug reports now use <#${option.id}>. All five status tags are ready. Saved for future restarts.` });
+      return;
+    }
+    if (forum.getForum().guildId !== interaction.guildId) {
+      await interaction.reply({ content: "Post the panel in the server containing the configured bug Forum.", flags: MessageFlags.Ephemeral }); return;
+    }
     const channel = await interaction.client.channels.fetch(option.id).catch(() => null);
     if (!(channel instanceof TextChannel) || channel.guildId !== interaction.guildId) {
       await interaction.reply({ content: "Choose a text channel in this server.", flags: MessageFlags.Ephemeral }); return;
