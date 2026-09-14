@@ -1,7 +1,7 @@
 import { REST } from "discord.js";
 import { config } from "./config";
-import { commands } from "./commands";
-import { commandBodyFor, syncGuildCommands } from "./deployCommands";
+import { commands } from "./commands/index";
+import { commandBodyFor, syncGuildCommands } from "./commands/registration";
 
 const rest = new REST().setToken(config.token);
 

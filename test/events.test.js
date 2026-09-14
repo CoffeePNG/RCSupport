@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { EventDecoder } = require('../dist/rcsupport/events');
+const { EventDecoder } = require('../dist/features/bugReports/events');
 
 test('SSE decoder handles fragmented events, reconnect ready, and heartbeats', () => {
   let calls = 0;

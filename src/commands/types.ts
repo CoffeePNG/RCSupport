@@ -1,5 +1,5 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction } from "discord.js";
-import type { RCSupportForum } from "../rcsupport/forum";
+import type { RCSupportForum } from "../features/bugReports/forum";
 
 export interface Command {
   data: {

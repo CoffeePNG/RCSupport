@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS rcsupport_deleted_threads (post_id TEXT PRIMARY KEY, 
 `);
 after(() => db.close());
 require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
-require.cache[require.resolve('../dist/rcsupport/events')] = { exports: { subscribeReports: () => () => {} } };
-const { RCSupportForum } = require('../dist/rcsupport/forum');
-const { BridgeClient } = require('../dist/rcsupport/api');
+require.cache[require.resolve('../dist/features/bugReports/events')] = { exports: { subscribeReports: () => () => {} } };
+const { RCSupportForum } = require('../dist/features/bugReports/forum');
+const { BridgeClient } = require('../dist/features/bugReports/api');
 const realReconcileHistories = RCSupportForum.prototype.reconcileHistories;
 RCSupportForum.prototype.reconcileHistories = async () => {}; // Legacy status tests isolate history I/O.
 BridgeClient.prototype.statusUpdates = async () => [];
@@ -270,9 +270,9 @@ test('batched recovery advances past failures in the first page', async () => {
 });
 
 const { Collection, PermissionFlagsBits, ButtonStyle } = require('discord.js');
-const repo = require('../dist/rcsupport/repo');
-const { closureContent, deliverClosure } = require('../dist/rcsupport/closureNotice');
-const { confirmThreadDeletion } = require('../dist/rcsupport/deleteThread');
+const repo = require('../dist/features/bugReports/repo');
+const { closureContent, deliverClosure } = require('../dist/features/bugReports/closureNotice');
+const { confirmThreadDeletion } = require('../dist/features/bugReports/deleteThread');
 const completeTags = ['Open','Acknowledged','In Progress','Resolved','Won’t Fix','Closed'].map((name,i)=>({id:`s${i}`,name}));
 function closureThread(id) {
   const messages = new Collection();
@@ -368,7 +368,7 @@ for(const choice of ['confirm','cancel','timeout']) test(`thread deletion confir
   assert.deepEqual(updates.at(-1).components,[]);
 });
 
-const { importHistoryMessage, importHistoryPage } = require('../dist/rcsupport/history');
+const { importHistoryMessage, importHistoryPage } = require('../dist/features/bugReports/history');
 const snowflake = n => String(100000000000000000n + BigInt(n));
 function humanMessage(n, author='staff') {
   return {id:snowflake(n), type:0, author:{id:author,username:author,bot:false}, webhookId:null,
@@ -424,4 +424,35 @@ test('history reconciliation continues after one thread fails and skips deleted 
   service.forum={id:'forum',threads:{fetch:async id=>{if(id==='missing705')throw new Error('Unavailable');return thread;}}};
   try{await realReconcileHistories.call(service);assert.deepEqual(imported,[706]);assert.equal(repo.historyCursor('missing705').last_seen,'0');}
   finally{repo.historyCandidates=candidates;}
+});
+
+
+test('history, deletion and status synchronization share the same per-thread queue', async () => {
+  const service = new RCSupportForum({forumChannelId:'forum', baseUrl:new URL('https://localhost')});
+  const id = 'queue801';
+  repo.storePluginPost(801, id, 'reporter'); repo.acknowledge(id);
+  let release, entered;
+  const started = new Promise(resolve => { entered = resolve; });
+  const order = [];
+  service.api.importHistory = async () => {
+    order.push('history'); entered();
+    await new Promise(resolve => { release = resolve; });
+    throw new Error('retry history later');
+  };
+  const message = {id:'999801', channelId:id, channel:{isThread:()=>true,parentId:'forum'},
+    author:{id:'staff',username:'Staff',bot:false},type:0,content:'Update',
+    attachments:new Map(),stickers:new Map(),createdTimestamp:1234000};
+  const history = assert.rejects(service.onMessage(message), /retry history later/);
+  await started;
+  service.deletionTarget = async () => ({delete:async()=>{order.push('delete');}});
+  const deletion = service.deleteReportThread('guild',id,'admin');
+  service.api.ticket = async () => { throw new Error('deleted thread must not be fetched'); };
+  service.api.acknowledgeStatus = async () => {order.push('ack');return {acknowledged:true};};
+  const status = service.syncStatusUpdate({ticket:{id:801,discord_post_id:id},revision:1});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(order,['history']);
+  release();
+  await Promise.all([history,deletion,status]);
+  assert.deepEqual(order,['history','delete','ack']);
+  assert.equal(service.statusWork.size,0);
 });

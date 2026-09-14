@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { reportEmbedBatches } = require('../dist/rcsupport/reportEmbeds');
+const { reportEmbedBatches } = require('../dist/features/bugReports/reportEmbeds');
 const base = { id: 42, reporter_name: 'Builder', discord_id: '123', server_id: 'build1', description: 'Broken door' };
 
 test('maximum wizard fields are preserved and fit one Discord message', () => {

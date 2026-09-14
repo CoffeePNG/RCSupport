@@ -1,23 +1,23 @@
 import { Command } from "./types";
-import { ticketCreateCommand } from "./tickets/ticket-create";
-import { staffAssignCommand } from "./admin/staff-assign";
-import { staffStatusCommand } from "./admin/staff-status";
-import { ticketConfigCommand } from "./admin/ticket-config";
-import { ticketPanelCommand } from "./admin/ticket-panel";
-import { archiveCommand } from "./utility/archive";
-import { modConfigCommand } from "./admin/mod-config";
-import { todoPanelCommand } from "./admin/todo-panel";
-import { banCommand } from "./moderation/ban";
-import { kickCommand } from "./moderation/kick";
-import { purgeCommand } from "./moderation/purge";
-import { timeoutCommand } from "./moderation/timeout";
-import { warnCommand } from "./moderation/warn";
-import { unwarnCommand } from "./moderation/unwarn";
-import { warningsCommand } from "./moderation/warnings";
-import { myTasksCommand } from "./todo/my-tasks";
-import { taskCommand } from "./todo/task";
-import { todoCommand } from "./todo/todo";
-import { bugreportCommand, brCommand } from "./admin/bugreport";
+import { ticketCreateCommand } from "../features/tickets/commands/ticket-create";
+import { staffAssignCommand } from "../features/tickets/commands/staff-assign";
+import { staffStatusCommand } from "../features/tickets/commands/staff-status";
+import { ticketConfigCommand } from "../features/tickets/commands/ticket-config";
+import { ticketPanelCommand } from "../features/tickets/commands/ticket-panel";
+import { archiveCommand } from "../features/archive/commands/archive";
+import { modConfigCommand } from "../features/moderation/commands/mod-config";
+import { todoPanelCommand } from "../features/todo/commands/todo-panel";
+import { banCommand } from "../features/moderation/commands/ban";
+import { kickCommand } from "../features/moderation/commands/kick";
+import { purgeCommand } from "../features/moderation/commands/purge";
+import { timeoutCommand } from "../features/moderation/commands/timeout";
+import { warnCommand } from "../features/moderation/commands/warn";
+import { unwarnCommand } from "../features/moderation/commands/unwarn";
+import { warningsCommand } from "../features/moderation/commands/warnings";
+import { myTasksCommand } from "../features/todo/commands/my-tasks";
+import { taskCommand } from "../features/todo/commands/task";
+import { todoCommand } from "../features/todo/commands/todo";
+import { bugreportCommand, brCommand } from "../features/bugReports/commands/bugreport";
 
 export const commands: Command[] = [
   ticketCreateCommand,

@@ -1,12 +1,12 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { config } from "./config";
-import { commands } from "./commands";
-import { syncGuildCommands } from "./deployCommands";
+import { commands } from "./commands/index";
+import { syncGuildCommands } from "./commands/registration";
 import { handleInteraction } from "./events/interactionCreate";
-import { seedDefaultTicketTypes } from "./seed/defaultTicketTypes";
+import { seedDefaultTicketTypes } from "./features/tickets/defaultTicketTypes";
 import "./db/connect";
-import { loadBridgeConfig } from "./rcsupport/config";
-import { RCSupportForum } from "./rcsupport/forum";
+import { loadBridgeConfig } from "./features/bugReports/config";
+import { RCSupportForum } from "./features/bugReports/forum";
 
 const rcForum = new RCSupportForum(loadBridgeConfig());
 

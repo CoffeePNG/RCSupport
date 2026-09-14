@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { planStatusTags, replaceStatusTag } = require('../dist/rcsupport/statusTags');
+const { planStatusTags, replaceStatusTag } = require('../dist/features/bugReports/statusTags');
 const keys = ['open', 'acknowledged', 'in_progress', 'resolved', 'wontfix'];
 const old = () => keys.map((name, i) => ({ id: `s${i}`, name, moderated: i === 2, emoji: null }));
 test('readable tag migration preserves IDs, moderation, custom tags and is idempotent', () => {

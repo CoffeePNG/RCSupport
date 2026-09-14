@@ -1,6 +1,6 @@
 import { PermissionFlagsBits, PermissionsBitField } from "discord.js";
-import { isLead } from "../db/ticketConfigRepo";
-import { Todo } from "../types/ticket";
+import { isLead } from "../features/tickets/ticketConfigRepo";
+import { Todo } from "../features/tickets/ticket";
 
 export function hasManageGuild(
   permissions: PermissionsBitField | Readonly<PermissionsBitField> | null | undefined

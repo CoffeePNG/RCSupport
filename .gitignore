@@ -6,3 +6,6 @@ data/
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# macOS Finder metadata
+.DS_Store

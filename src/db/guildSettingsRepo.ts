@@ -1,5 +1,5 @@
 import { db } from "./connect";
-import { GuildSettings } from "../types/ticket";
+import { GuildSettings } from "../features/tickets/ticket";
 
 /**
  * Archive logging is three-state: a channel, unset (fall back to the mod-log

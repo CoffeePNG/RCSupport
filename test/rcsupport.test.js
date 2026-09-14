@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { AlertModeCache } = require('../dist/rcsupport/api');
-const { shouldCreatePost, shouldNotifyReporter, shouldSyncStatus } = require('../dist/rcsupport/policy');
+const { AlertModeCache } = require('../dist/features/bugReports/api');
+const { shouldCreatePost, shouldNotifyReporter, shouldSyncStatus } = require('../dist/features/bugReports/policy');
 
 const plugin = { discordPostId: 'post-1', pluginTicketId: 4, reporterDiscordId: 'reporter', apiAcknowledged: true };
 const native = { discordPostId: 'post-2', pluginTicketId: null, reporterDiscordId: null, apiAcknowledged: false };
