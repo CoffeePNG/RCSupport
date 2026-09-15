@@ -11,15 +11,17 @@ const reply=id=>({id,ticket_id:id,post_id:'123456789012345678',author:'Admin',bo
 function thread() {
   const messages=new Collection();let sends=0,payload;
   return {client:{user:{id:'bot'}},parentId:'forum',messages:{fetch:async()=>messages},
-    send:async data=>{sends++;payload=data;const m={id:String(223456789012345678n+BigInt(sends)),author:{id:'bot'},embeds:data.embeds,createdTimestamp:Date.now()};messages.set(m.id,m);return m;},
+    send:async data=>{sends++;payload=data;const m={id:String(223456789012345678n+BigInt(sends)),author:{id:'bot'},embeds:data.embeds??[],content:data.content,createdTimestamp:Date.now()};messages.set(m.id,m);return m;},
     get sends(){return sends;},get payload(){return payload;}};
 }
 test('durable receipts prevent duplicate sends and disable mention parsing',async()=>{
   const t=thread(),r=reply(1);const id=await deliverReply(t,r);
   assert.equal(await deliverReply(t,r),id);assert.equal(t.sends,1);
   assert.deepEqual(t.payload.allowedMentions,{parse:[]});assert.equal(t.payload.enforceNonce,true);
-  assert.equal(t.payload.embeds[0].author.name,'Admin (Minecraft)');
-  assert.ok(t.payload.embeds[0].description.includes('\\*'));
+  assert.equal(t.payload.embeds,undefined);
+  assert.ok(t.payload.content.startsWith('Admin (Minecraft): literal '));
+  assert.ok(t.payload.content.includes('\\*'));
+  assert.ok(t.payload.content.endsWith('\n-# Minecraft reply #1'));
 });
 test('ambiguous send recovers from Discord history after receipt loss, even after close',async()=>{
   const t=thread(),r=reply(2);const id=await deliverReply(t,r);
@@ -48,4 +50,19 @@ test('unmapped and closed reports fail explicitly without sending',async()=>{
   await reconcileReplies(ctx);assert.deepEqual(failures,['Thread mapping changed']);
   ctx.api.ticket=async()=>({ticket:{discord_post_id:r.post_id,status:'resolved'}});
   await reconcileReplies(ctx);assert.equal(failures[1],'Report closed');assert.equal(t.sends,0);
+});
+
+test('legacy embeds remain recoverable during an upgrade',async()=>{
+  const t=thread(),r=reply(7);const id=await deliverReply(t,r);
+  const messages=await t.messages.fetch();
+  messages.get(id).content='';
+  messages.get(id).embeds=[{footer:{text:'Minecraft reply #7'}}];
+  db.prepare('UPDATE rcsupport_reply_receipts SET message_id=NULL WHERE reply_id=?').run(r.id);
+  assert.equal(await deliverReply(t,r),id);assert.equal(t.sends,1);
+});
+test('heavily escaped replies stay within Discord content limits without losing text',async()=>{
+  const t=thread(),r={...reply(8),body:'~'.repeat(1000)};
+  await deliverReply(t,r);
+  assert.ok(t.payload.content.length<=2000);
+  assert.equal(t.payload.files[0].attachment.toString('utf8'),r.body);
 });

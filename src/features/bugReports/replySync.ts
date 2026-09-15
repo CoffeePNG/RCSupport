@@ -22,7 +22,7 @@ export async function deliverReply(thread: ThreadChannel, reply: OutboundReply, 
     let before: string | undefined;
     while (true) {
       const batch = await thread.messages.fetch({limit:100,cache:false,...(before ? {before} : {})});
-      const found = batch.find(m => m.author.id === thread.client.user!.id && m.embeds.some(e => e.footer?.text === marker));
+      const found = batch.find(m => m.author.id === thread.client.user!.id && (m.content?.endsWith(`\n-# ${marker}`) || m.embeds.some(e => e.footer?.text === marker)));
       if (found) return complete(reply, found.id);
       if (!batch.size) break;
       const oldest = [...batch.values()].reduce((a,b) => BigInt(a.id)<BigInt(b.id) ? a : b);
@@ -36,8 +36,12 @@ export async function deliverReply(thread: ThreadChannel, reply: OutboundReply, 
   db.prepare("UPDATE rcsupport_reply_receipts SET attempted_at=COALESCE(attempted_at,?) WHERE reply_id=? AND post_id=?")
     .run(Math.floor(Date.now()/1000),reply.id,reply.post_id);
   const nonce=createHash("sha256").update(`reply:${reply.post_id}:${reply.id}`).digest("hex").slice(0,24);
+  const content = `${escapeMarkdown(reply.author)} (Minecraft): ${escapeMarkdown(reply.body)}\n-# ${marker}`;
   const sent=await thread.send({
-    embeds:[{author:{name:reply.author+" (Minecraft)"},description:escapeMarkdown(reply.body),footer:{text:marker}}],
+    ...(content.length <= 2000 ? {content} : {
+      content: `${escapeMarkdown(reply.author)} (Minecraft): reply attached.\n-# ${marker}`,
+      files: [{attachment: Buffer.from(reply.body, "utf8"), name: "reply.txt"}],
+    }),
     allowedMentions:{parse:[]},nonce,enforceNonce:true,
   });
   return complete(reply,sent.id);
