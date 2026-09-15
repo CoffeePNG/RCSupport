@@ -68,3 +68,9 @@ test('command scope, autocomplete and the shared error boundary survive dispatch
     calls=[];await handleInteraction({...interaction('button','ticket_close:1'),deferred:true},commands);assert.deepEqual(calls,['handleTicketCloseRequest']);
   } finally {fail=false;console.error=log;}
 });
+
+test('case buttons route to the report control handler',async()=>{
+  let handled=0;
+  await handleInteraction(interaction('button','rcsupport:case:claim:0'),new Map(),{handleControl:async()=>handled++});
+  assert.equal(handled,1);
+});

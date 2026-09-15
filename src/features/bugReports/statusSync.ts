@@ -1,5 +1,6 @@
 import { AuditLogEvent, ThreadChannel } from "discord.js";
 import { setTimeout as delay } from "node:timers/promises";
+import { renderControls } from "./caseControls";
 import { deliverClosure } from "./closureNotice";
 import { shouldSyncStatus } from "./policy";
 import * as repo from "./repo";
@@ -38,6 +39,7 @@ export async function syncStatusUpdate(ctx: ForumContext, update: StatusUpdate):
       const notice = repo.queueClosure(`plugin:${ticket.id}:${closure.id}`, postId!, closure.actor || "Unknown staff member", closure.closed_at);
       await deliverClosure(thread, notice);
     }
+    await renderControls(ctx,thread,current.ticket.status);
     const ack = await ctx.api.acknowledgeStatus(ticket.id, update.revision);
     if (!ack.acknowledged) ctx.requestPoll();
   });
@@ -83,6 +85,7 @@ export async function onThreadUpdate(ctx: ForumContext, oldThread: ThreadChannel
         ctx.ownTagUpdates.set(ctx.tagSignature(newThread.id, tags), Date.now() + 300000);
         await newThread.setAppliedTags(tags, "Update RCSupport Closed label");
       }
+      await renderControls(ctx,newThread,selected[0]);
       if (actor) await deliverClosure(newThread, repo.queueClosure(`native:${actor.key}`, newThread.id, actor.name, actor.time));
       return;
     }

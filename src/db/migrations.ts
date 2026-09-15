@@ -112,6 +112,12 @@ export function migrateDatabase(db: Database.Database): void {
     message_id TEXT, PRIMARY KEY(reply_id, post_id)
   )`);
 
+  db.exec(`CREATE TABLE IF NOT EXISTS rcsupport_case_controls (
+    post_id TEXT PRIMARY KEY, claimant TEXT, status TEXT NOT NULL DEFAULT 'open',
+    revision INTEGER NOT NULL DEFAULT 0, pending_status TEXT, pending_claimant TEXT,
+    expected_revision INTEGER, actor TEXT, checked_at INTEGER NOT NULL DEFAULT 0
+  )`);
+
   function ensureColumn(table: string, column: string, definition: string): void {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
     if (!columns.some((c) => c.name === column)) {

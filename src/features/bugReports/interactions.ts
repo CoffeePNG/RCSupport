@@ -9,6 +9,10 @@ export async function handleBugReportsInteraction(interaction: Interaction, rcFo
     await submitBugModal(interaction, rcForum);
     return true;
   }
+  if (interaction.isButton() && interaction.customId.startsWith("rcsupport:case:")) {
+    await rcForum.handleControl(interaction);
+    return true;
+  }
   if (interaction.isButton() && interaction.customId === BUGTHREAD_BUTTON_ID) {
     await openBugModal(interaction, rcForum);
     return true;

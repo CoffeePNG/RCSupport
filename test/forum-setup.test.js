@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS rcsupport_deleted_threads (post_id TEXT PRIMARY KEY, 
 after(() => db.close());
 require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
 require.cache[require.resolve('../dist/features/bugReports/events')] = { exports: { subscribeReports: () => () => {} } };
+require.cache[require.resolve('../dist/features/bugReports/caseControls')] = { exports: {
+  controlRows:()=>[],renderControls:async()=>{},reconcileControls:async()=>{}
+} };
 const { RCSupportForum } = require('../dist/features/bugReports/forum');
 const { BridgeClient } = require('../dist/features/bugReports/api');
 const realReconcileHistories = RCSupportForum.prototype.reconcileHistories;

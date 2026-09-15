@@ -1,10 +1,11 @@
-import { ChannelType, Client, ForumChannel, Message, PermissionFlagsBits, ThreadChannel } from "discord.js";
+import { ButtonInteraction, ChannelType, Client, ForumChannel, Message, PermissionFlagsBits, ThreadChannel } from "discord.js";
 import { db } from "../../db/connect";
 import { AlertModeCache, BridgeClient } from "./api";
 import { BridgeConfig } from "./config";
 import { subscribeReports } from "./events";
 import type { ForumContext } from "./forumContext";
 import { reconcileReplies } from "./replySync";
+import { handleControl, reconcileControls } from "./caseControls";
 import * as historySync from "./historySync";
 import { shouldCreatePost } from "./policy";
 import * as posts from "./posts";
@@ -126,6 +127,7 @@ export class RCSupportForum {
   tag(status: TicketStatus): string {
     return statusTagId(this.getForum().availableTags, status);
   }
+  handleControl(interaction: ButtonInteraction): Promise<void> { return handleControl(this.context, interaction); }
   async poll(): Promise<void> {
     if (!this.forum) return;
     if (this.polling) { this.pollAgain = true; return; }
@@ -134,6 +136,7 @@ export class RCSupportForum {
     try {
       // Process durable changes before the legacy open-report listing. A large open
       // listing or an individual deleted post must not starve closed status updates.
+      await reconcileControls(this.context);
       await statusSync.reconcileStatuses(this.context);
       await this.acknowledgePending();
       try { await reconcileReplies(this.context); }

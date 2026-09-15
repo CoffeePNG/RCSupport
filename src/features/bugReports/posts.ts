@@ -1,5 +1,6 @@
 import { EmbedBuilder, PermissionFlagsBits, ThreadChannel } from "discord.js";
 import { getLeads, getTicketType } from "../tickets/ticketConfigRepo";
+import { controlRows, renderControls } from "./caseControls";
 import * as repo from "./repo";
 import { reportEmbedBatches } from "./reportEmbeds";
 import { replaceStatusTag } from "./statusTags";
@@ -46,6 +47,7 @@ export async function refreshReport(ctx: ForumContext, guildId: string, id: numb
   if (batches.length !== 1)
     throw new Error("This legacy report is too large for a single starter. Its existing post has been preserved.");
   await starter.edit({ embeds: batches[0], allowedMentions: { parse: [] } });
+  await renderControls(ctx, thread, ticket.status);
   await thread.setName(`#${ticket.id} ${ticket.title || ticket.description}`.replace(/\s+/g, " ").slice(0, 100));
   return postId;
 }
@@ -59,6 +61,7 @@ export async function createPluginPost(ctx: ForumContext, ticket: PluginTicket):
     message: {
       content: leads.map((id) => `<@${id}>`).join(" ") || undefined,
       embeds: batches[0],
+      components: controlRows(ticket.status ?? "open"),
       allowedMentions: { parse: [], users: leads },
     },
   });
@@ -78,6 +81,7 @@ export async function createNativePost(ctx: ForumContext, description: string, r
     message: {
       content: [`Reporter: <@${reporterId}>`, ...leads.map((id) => `<@${id}>`)].join(" "),
       embeds: [new EmbedBuilder().setTitle("Bug Report").setDescription(description.slice(0, 4000))],
+      components: controlRows("open"),
       allowedMentions: { parse: [], users: leads },
     },
   });
