@@ -1,6 +1,6 @@
 import https from "node:https";
 import { BridgeConfig } from "./config";
-import { AlertMode, PluginTicket, TicketStatus, StatusUpdate } from "./types";
+import { AlertMode, PluginTicket, TicketStatus, StatusUpdate, OutboundReply } from "./types";
 
 interface Envelope<T> { data: T | null; error: { code: string; message: string } | null }
 
@@ -40,6 +40,13 @@ export class BridgeClient {
     });
   }
 
+  markThreadUnavailable(id: number, post: string): Promise<unknown> {
+    return this.request("POST", `/api/v1/tickets/${id}/thread-unavailable`, {post_id:post});
+  }
+  outboundReplies(after = 0): Promise<OutboundReply[]> { return this.request("GET", `/api/v1/replies?after=${after}`); }
+  acknowledgeReply(reply: OutboundReply, result: { message_id: string } | { failure: string }): Promise<unknown> {
+    return this.request("POST", `/api/v1/replies/${reply.id}/ack`, { post_id: reply.post_id, ...result });
+  }
   configMode(): Promise<{ alert_mode: AlertMode }> { return this.request("GET", "/api/v1/config"); }
   tickets(since: number): Promise<PluginTicket[]> {
     return this.request("GET", `/api/v1/tickets?status=open&since=${since}`);
@@ -57,7 +64,7 @@ export class BridgeClient {
   status(id: number, status: TicketStatus, actor?: string, expectedRevision?: number): Promise<PluginTicket> {
     return this.request("PATCH", `/api/v1/tickets/${id}/status`, { status, ...(actor ? { actor } : {}), ...(expectedRevision === undefined ? {} : { expected_revision: expectedRevision }) });
   }
-  importHistory(id: number, message: { post_id: string; message_id: string; author: string; body: string; created_at: number; notify: boolean }): Promise<{inserted: boolean}> {
+  importHistory(id: number, message: { post_id: string; message_id: string; author: string; body: string; created_at: number; notify: boolean; notify_subscribers?: boolean }): Promise<{inserted: boolean}> {
     return this.request("POST", `/api/v1/tickets/${id}/history`, message);
   }
   reply(id: number, author: string, body: string): Promise<unknown> {

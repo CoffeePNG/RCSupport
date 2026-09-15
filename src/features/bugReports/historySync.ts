@@ -10,10 +10,13 @@ export async function reconcileHistories(ctx: ForumContext): Promise<void> {
       await ctx.serial(mapping.discordPostId, async () => {
         if (repo.threadDeleted(mapping.discordPostId)) return;
         const thread = await ctx.getForum().threads.fetch(mapping.discordPostId);
-        if (!thread || thread.parentId !== ctx.getForum().id) throw new Error("History thread is unavailable or belongs to an earlier Forum");
+        if (!thread) { await ctx.api.markThreadUnavailable(mapping.pluginTicketId!, mapping.discordPostId); return; }
+        if (thread.parentId !== ctx.getForum().id) throw new Error("History thread is unavailable or belongs to an earlier Forum");
         await importHistoryPage(ctx.api, mapping, thread);
       });
     } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && String(error.code) === "10003")
+        await ctx.api.markThreadUnavailable(mapping.pluginTicketId!, mapping.discordPostId);
       // Move failures to the back of the fair queue without advancing their page.
       repo.saveHistoryCursor(mapping.discordPostId, repo.historyCursor(mapping.discordPostId));
       ctx.reportSyncError(mapping.pluginTicketId!, "import Discord history", error);

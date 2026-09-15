@@ -33,3 +33,5 @@ export interface PostMapping {
   reporterDiscordId: string | null;
   apiAcknowledged: boolean;
 }
+
+export interface OutboundReply { id: number; ticket_id: number; post_id: string; author: string; body: string; created_at: number }

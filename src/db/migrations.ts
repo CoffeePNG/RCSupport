@@ -107,6 +107,11 @@ export function migrateDatabase(db: Database.Database): void {
     );
   `);
 
+  db.exec(`CREATE TABLE IF NOT EXISTS rcsupport_reply_receipts (
+    reply_id INTEGER NOT NULL, post_id TEXT NOT NULL, attempted_at INTEGER,
+    message_id TEXT, PRIMARY KEY(reply_id, post_id)
+  )`);
+
   function ensureColumn(table: string, column: string, definition: string): void {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
     if (!columns.some((c) => c.name === column)) {

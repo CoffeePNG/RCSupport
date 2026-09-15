@@ -4,6 +4,7 @@ import { AlertModeCache, BridgeClient } from "./api";
 import { BridgeConfig } from "./config";
 import { subscribeReports } from "./events";
 import type { ForumContext } from "./forumContext";
+import { reconcileReplies } from "./replySync";
 import * as historySync from "./historySync";
 import { shouldCreatePost } from "./policy";
 import * as posts from "./posts";
@@ -135,6 +136,13 @@ export class RCSupportForum {
       // listing or an individual deleted post must not starve closed status updates.
       await statusSync.reconcileStatuses(this.context);
       await this.acknowledgePending();
+      try { await reconcileReplies(this.context); }
+      catch (error) {
+        // Older bridges do not have the reply queue yet. Keep existing report
+        // synchronization working during a rolling upgrade or reply-queue outage.
+        if (!(error instanceof Error && /Bridge (GET|POST) \/api\/v1\/(replies|tickets\/.*\/thread-unavailable).*: 404/.test(error.message)))
+          this.reportSyncError(0, "synchronize Minecraft replies", error);
+      }
       // The bot and Minecraft can have different clocks. Reconcile all open reports;
       // persisted mappings below prevent duplicate Forum posts.
       const tickets = await this.api.tickets(0);

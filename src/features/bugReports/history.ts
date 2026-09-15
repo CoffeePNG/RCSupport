@@ -16,6 +16,7 @@ export async function importHistoryMessage(api: BridgeClient, mapping: PostMappi
     post_id: mapping.discordPostId, message_id: message.id,
     author: message.member?.displayName ?? message.author.username, body,
     created_at: Math.floor(message.createdTimestamp / 1000),
+    notify_subscribers: live,
     notify: live && shouldNotifyReporter(mapping, message.author.id, message.author.bot),
   });
 }

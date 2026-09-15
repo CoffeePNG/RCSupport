@@ -25,6 +25,8 @@ const { BridgeClient } = require('../dist/features/bugReports/api');
 const realReconcileHistories = RCSupportForum.prototype.reconcileHistories;
 RCSupportForum.prototype.reconcileHistories = async () => {}; // Legacy status tests isolate history I/O.
 BridgeClient.prototype.statusUpdates = async () => [];
+BridgeClient.prototype.outboundReplies = async () => [];
+BridgeClient.prototype.markThreadUnavailable = async () => ({});
 
 test('notification during a poll queues another reconciliation', async () => {
   const service = new RCSupportForum({ baseUrl: new URL('https://localhost') });
@@ -455,4 +457,14 @@ test('history, deletion and status synchronization share the same per-thread que
   await Promise.all([history,deletion,status]);
   assert.deepEqual(order,['history','delete','ack']);
   assert.equal(service.statusWork.size,0);
+});
+
+test('an older bridge without reply endpoints still reconciles reports',async()=>{
+  const service=new RCSupportForum({baseUrl:new URL('https://localhost')});
+  service.forum={id:'forum'};
+  service.api.outboundReplies=async()=>{throw new Error('Bridge GET /api/v1/replies?after=0: 404 Unknown endpoint');};
+  service.api.markThreadUnavailable=async()=>{throw new Error('Bridge POST /api/v1/tickets/1/thread-unavailable: 404 Unknown endpoint');};
+  let reads=0;service.api.tickets=async()=>{reads++;return [];};
+  service.acknowledgePending=async()=>{};
+  await service.poll();assert.equal(reads,1);
 });
