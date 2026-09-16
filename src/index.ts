@@ -37,7 +37,7 @@ async function registerCommands(clientId: string, guildIds: readonly string[]): 
 client.once(Events.ClientReady, async (readyClient) => {
   try { await rcForum.start(readyClient); }
   catch (error) {
-    console.error("RCSupport Forum needs setup. Run /bugreport setup channel:<forum>:", error);
+    console.error("RCSupport Forum needs setup. Run /br setup channel:<forum>:", error);
   }
   for (const guild of readyClient.guilds.cache.values()) {
     seedDefaultTicketTypes(guild.id);

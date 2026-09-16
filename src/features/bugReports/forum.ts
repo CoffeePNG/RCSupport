@@ -64,7 +64,7 @@ export class RCSupportForum {
   async start(client: Client): Promise<void> {
     const saved = db.prepare("SELECT channel_id FROM rcsupport_forum_settings WHERE singleton = 1").get() as { channel_id: string } | undefined;
     if (saved) this.config.forumChannelId = saved.channel_id;
-    if (!this.config.forumChannelId) throw new Error("Choose a Forum with /bugreport setup.");
+    if (!this.config.forumChannelId) throw new Error("Choose a Forum with /br setup.");
     const channel = await client.channels.fetch(this.config.forumChannelId);
     if (!channel || channel.type !== ChannelType.GuildForum)
       throw new Error("RCSUPPORT_FORUM_CHANNEL_ID does not identify a Forum channel");
@@ -121,7 +121,7 @@ export class RCSupportForum {
     this.pollAgain = false;
   }
   getForum(): ForumChannel {
-    if (!this.forum) throw new Error("Run /bugreport setup channel:<forum> to configure the bug Forum.");
+    if (!this.forum) throw new Error("Run /br setup channel:<forum> to configure the bug Forum.");
     return this.forum;
   }
   tag(status: TicketStatus): string {

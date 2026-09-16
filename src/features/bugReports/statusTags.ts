@@ -49,7 +49,7 @@ export function replaceStatusTag(tags: readonly { id: string; name: string }[], 
   const statusTags = [statusTagId(tags, status)];
   if (isClosed(status)) {
     const closed = tags.filter(tag => tag.name === CLOSED_TAG_NAME);
-    if (closed.length !== 1) throw new Error("Missing or ambiguous Closed tag; run /bugreport setup.");
+    if (closed.length !== 1) throw new Error("Missing or ambiguous Closed tag; run /br setup.");
     statusTags.push(closed[0].id);
   }
   if (custom.length + statusTags.length > 5) throw new Error("Post has too many custom tags for its status and Closed tags. Custom tags were preserved.");
