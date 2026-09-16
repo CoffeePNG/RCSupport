@@ -18,7 +18,7 @@ export interface ForumContext {
   leads(): string[];
   mentionLeads(): Promise<string[]>;
   createPluginPost(ticket: PluginTicket): Promise<void>;
-  deletionTarget(guildId: string, postId: string, actorId: string): Promise<ThreadChannel>;
+  deletionTarget(guildId: string, postId: string, actorId: string, requireClosed?: boolean): Promise<ThreadChannel>;
   closingActor(thread: ThreadChannel, tags: readonly string[]): Promise<{name: string; time: number; key: string}>;
   syncStatusUpdate(update: StatusUpdate): Promise<void>;
 }

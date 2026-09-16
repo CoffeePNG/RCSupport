@@ -55,7 +55,7 @@ export class RCSupportForum {
       reportSyncError: (id, operation, error) => this.reportSyncError(id, operation, error),
       leads: () => this.leads(), mentionLeads: () => this.mentionLeads(),
       createPluginPost: ticket => this.createPluginPost(ticket),
-      deletionTarget: (guild, post, actor) => this.deletionTarget(guild, post, actor),
+      deletionTarget: (guild, post, actor, closed) => this.deletionTarget(guild, post, actor, closed),
       closingActor: (thread, tags) => this.closingActor(thread, tags),
       syncStatusUpdate: update => this.syncStatusUpdate(update),
     };
@@ -213,11 +213,11 @@ export class RCSupportForum {
   createNativePost(description: string, reporterId: string, title?: string, requestId?: string): Promise<ThreadChannel> {
     return posts.createNativePost(this.context, description, reporterId, title, requestId);
   }
-  deletionTarget(guildId: string, postId: string, actorId: string): Promise<ThreadChannel> {
-    return posts.deletionTarget(this.context, guildId, postId, actorId);
+  deletionTarget(guildId: string, postId: string, actorId: string, requireClosed = false): Promise<ThreadChannel> {
+    return posts.deletionTarget(this.context, guildId, postId, actorId, requireClosed);
   }
-  deleteReportThread(guildId: string, postId: string, actorId: string): Promise<void> {
-    return posts.deleteReportThread(this.context, guildId, postId, actorId);
+  deleteReportThread(guildId: string, postId: string, actorId: string, requireClosed = false): Promise<void> {
+    return posts.deleteReportThread(this.context, guildId, postId, actorId, requireClosed);
   }
   private syncStatusUpdate(update: StatusUpdate): Promise<void> {
     return statusSync.syncStatusUpdate(this.context, update);

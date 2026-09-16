@@ -7,9 +7,11 @@ const replacements = {
   '../dist/features/tickets/configHandler': {CONFIG_EDIT_MODAL_PREFIX:'ticket_config_edit:',PANEL_EDIT_MODAL_ID:'ticket_panel_edit'},
   '../dist/features/todo/todoHandler': {},
   '../dist/features/bugReports/panel': {},
+  '../dist/features/bugReports/deleteThread': {},
   '../dist/features/bugReports/commands/bugreport': {BUGTHREAD_BUTTON_ID:'rcsupport:open',BUGTHREAD_MODAL_ID:'rcsupport:submit'},
 };
 const routes = [
+  ['button','rcsupport:case:delete:0','confirmThreadDeletion','bugReports/deleteThread'],
   ['modal','rcsupport:submit','submitBugModal','bugReports/panel'],
   ['button','rcsupport:open','openBugModal','bugReports/panel'],
   ['modal','ticket_create_modal:bug','handleTicketCreateModal','tickets/ticketHandler'],

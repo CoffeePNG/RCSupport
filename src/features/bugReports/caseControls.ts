@@ -16,7 +16,7 @@ export function controlRows(status: TicketStatus, claimant: string | null = null
   const button = (action: string, label: string, style: ButtonStyle) =>
     new ButtonBuilder().setCustomId(CONTROL_PREFIX + action + ":" + revision).setLabel(label).setStyle(style).setDisabled(pending);
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(...(isClosed(status)
-    ? [button("reopen", "Reopen", ButtonStyle.Success)]
+    ? [button("reopen", "Reopen", ButtonStyle.Success), button("delete", "Delete", ButtonStyle.Danger)]
     : [claimant ? button("release", "Release", ButtonStyle.Secondary) : button("claim", "Claim", ButtonStyle.Primary),
        button("close", "Close", ButtonStyle.Danger)]))];
 }
@@ -64,7 +64,7 @@ export async function renderControls(ctx: ForumContext, thread: ThreadChannel, s
   // Preserve embeds and attachments; reserve one line outside the embed budget.
   const original = starter.content.replace(/\n?\*\*Case status:\*\*[^\n]*/g,"");
   const claim = saved.claimant ? "<@" + saved.claimant + ">" : "Unclaimed";
-  const content = original + (original ? "\n" : "") + "**Case status:** " + STATUS_PRESENTATION[saved.status].name + " · " + claim;
+  const content = original + (original ? "\n" : "") + "**Case status:** " + STATUS_PRESENTATION[saved.status].name + " | " + claim;
   if (content.length > 2000) throw new Error("The original message has no room for the assignment line.");
   const components = controlRows(saved.status,saved.claimant,saved.revision,!!saved.pending_status);
   const existing = starter.components.map(c=>c.toJSON());
@@ -124,8 +124,8 @@ export async function applyAction(ctx: ForumContext, post: string, user: string,
 function confirmationRow(token: string, confirm?: "resolved" | "wontfix") {
   const button=(action:string,label:string,style:ButtonStyle)=>new ButtonBuilder().setCustomId(CONTROL_PREFIX+action+":"+token).setLabel(label).setStyle(style);
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(...(confirm
-    ? [button("confirm","Confirm "+STATUS_PRESENTATION[confirm].name,ButtonStyle.Danger),button("cancel","Cancel",ButtonStyle.Secondary)]
-    : [button("choose_resolved","Resolved",ButtonStyle.Success),button("choose_wontfix","Won’t Fix",ButtonStyle.Secondary),button("cancel","Cancel",ButtonStyle.Secondary)]))];
+    ? [button("confirm","Close as "+STATUS_PRESENTATION[confirm].name,ButtonStyle.Danger),button("cancel","Cancel",ButtonStyle.Secondary)]
+    : [button("choose_resolved","Resolved",ButtonStyle.Success),button("choose_wontfix",STATUS_PRESENTATION.wontfix.name,ButtonStyle.Secondary),button("cancel","Cancel",ButtonStyle.Secondary)]))];
 }
 export async function handleControl(ctx: ForumContext, interaction: ButtonInteraction): Promise<void> {
   try {

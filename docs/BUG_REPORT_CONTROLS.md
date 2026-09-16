@@ -6,7 +6,8 @@ Implemented locally. Not published or deployed; live Discord validation remains 
 
 - **Claim**: assigns the report to the clicking user and sets In Progress.
 - **Release**: removes the claim and sets Open. Only the current claimant or a member with Manage Server may release.
-- **Close**: opens a private choice of Resolved or Won't Fix, followed by explicit confirmation. Confirmation expires after 60 seconds and belongs to the initiating user.
+- **Close**: opens a private choice of Resolved or Not Planned, followed by explicit confirmation. Confirmation expires after 60 seconds and belongs to the initiating user.
+- **Delete**: appears beside Reopen on closed reports. Requires Manage Server and Manage Threads, checks permissions and closed status again on confirmation, and retains the saved report/history. Shared message buttons are visible to everyone who can view the report; unauthorized users receive a private refusal.
 - **Reopen**: appears on closed reports; sets Open and clears the old claim.
 
 Members must be an individually assigned bug-report lead or have Manage Server, and must still be able to view the thread. Permissions are fetched again when the final action runs. Claims do not grant additional access.
@@ -46,3 +47,5 @@ Recommend /bugreport leads add|remove|list, also available under /br if implemen
 6. Verify Minecraft status changes update the linked message controls.
 7. Restart with a saved claim and simulate a bot/bridge outage during a transition; ensure recovery does not duplicate notices.
 8. Check a previously created report and an archived thread. Visual layout and runtime behavior have not yet been verified on the actual server.
+
+The stored/API status remains `wontfix`. Startup renames existing Won’t Fix tags to Not Planned in place, preserving tag IDs and report assignments.

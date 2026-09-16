@@ -119,7 +119,7 @@ test('startup prepares a blank Forum without duplicating tags on restart', async
   service.poll = async () => {};
   try {
     await service.start(client);
-    assert.deepEqual(channel.availableTags.map(t => t.name), ['Open', 'Acknowledged', 'In Progress', 'Resolved', 'Won’t Fix', 'Closed']);
+    assert.deepEqual(channel.availableTags.map(t => t.name), ['Open', 'Acknowledged', 'In Progress', 'Resolved', 'Not Planned', 'Closed']);
     await service.start(client);
     assert.equal(channel.availableTags.length, 6);
   } finally { service.stop(); }
@@ -359,7 +359,7 @@ test('deletion checks both permissions and the exact tracked Forum, preserving m
 });
 for(const choice of ['confirm','cancel','timeout']) test(`thread deletion confirmation: ${choice}`,async()=>{
   let deletes=0,updates=[];
-  const interaction={id:'interaction',guildId:'guild',channelId:'123456789012345678',user:{id:'admin'},options:{getString:()=>null},
+  const interaction={isButton:()=>false,isChatInputCommand:()=>true,id:'interaction',guildId:'guild',channelId:'123456789012345678',user:{id:'admin'},options:{getString:()=>null},
     deferReply:async()=>{},editReply:async payload=>{updates.push(payload);return {awaitMessageComponent:async options=>{
       assert.equal(options.filter({user:{id:'other'},customId:'rcsupport:delete:interaction'}),false);
       assert.equal(options.filter({user:{id:'admin'},customId:'unrelated'}),false);
@@ -470,4 +470,24 @@ test('an older bridge without reply endpoints still reconciles reports',async()=
   let reads=0;service.api.tickets=async()=>{reads++;return [];};
   service.acknowledgePending=async()=>{};
   await service.poll();assert.equal(reads,1);
+});
+
+test('closed-report deletion rechecks admin permissions and authoritative status before deleting',async()=>{
+  const service=new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  const thread=closureThread('delete-closed-only');let deleted=false;
+  const rights=new Set([PermissionFlagsBits.ManageGuild,PermissionFlagsBits.ManageThreads]);
+  thread.permissionsFor=()=>({has:()=>true});thread.delete=async()=>{deleted=true;};thread.appliedTags=['s3','s5'];
+  repo.storeNativePost(thread.id);
+  service.forum={id:'forum',guildId:'guild',availableTags:completeTags,guild:{members:{fetch:async()=>({permissions:{has:p=>rights.has(p)}})}},threads:{fetch:async()=>thread}};
+  await service.deletionTarget('guild',thread.id,'admin',true);
+  rights.delete(PermissionFlagsBits.ManageGuild);
+  await assert.rejects(service.deleteReportThread('guild',thread.id,'lead',true),/Manage Server/);
+  rights.add(PermissionFlagsBits.ManageGuild);thread.appliedTags=['s0'];
+  await assert.rejects(service.deleteReportThread('guild',thread.id,'admin',true),/report is open/);
+  assert.equal(deleted,false);
+  thread.appliedTags=['s4','s5'];await service.deleteReportThread('guild',thread.id,'admin',true);assert.equal(deleted,true);
+  const linked=closureThread('delete-linked-status');linked.permissionsFor=()=>({has:()=>true});linked.appliedTags=['s3'];
+  repo.storePluginPost(99999,linked.id,'user');service.forum.threads.fetch=async()=>linked;
+  service.api.ticket=async()=>({ticket:{status:'open'}});
+  await assert.rejects(service.deletionTarget('guild',linked.id,'admin',true),/report is open/);
 });

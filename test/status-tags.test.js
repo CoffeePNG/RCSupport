@@ -9,7 +9,7 @@ test('readable tag migration preserves IDs, moderation, custom tags and is idemp
   result.tags.at(-1).id = "closed";
   assert.equal(result.changed, true);
   assert.deepEqual(result.tags.slice(0, 5).map(t => t.id), ['s0','s1','s2','s3','s4']);
-  assert.deepEqual(result.tags.slice(0, 5).map(t => t.name), ['Open','Acknowledged','In Progress','Resolved','Won’t Fix']);
+  assert.deepEqual(result.tags.slice(0, 5).map(t => t.name), ['Open','Acknowledged','In Progress','Resolved','Not Planned']);
   assert.deepEqual(result.tags.slice(0, 5).map(t => t.emoji.name), ['🔴','👀','🔧','✅','⛔']);
   assert.equal(result.tags[2].moderated, true); assert.deepEqual(result.tags[5], custom);
   assert.equal(planStatusTags(result.tags).changed, false);
@@ -24,3 +24,12 @@ test('ambiguous old and new tags and a full Forum are rejected without deleting 
 });
 
 test('duplicate Closed tags are rejected', () => { assert.throws(() => planStatusTags([...old(), {id:'a',name:'Closed'}, {id:'b',name:'Closed'}]), /Ambiguous Closed/); });
+
+test('previous Won’t Fix labels migrate in place and still resolve existing tags',()=>{
+  for (const name of ['Won’t Fix', "Won't Fix", 'Won�t Fix']) {
+    const tags=old();tags[4].name=name;
+    const result=planStatusTags(tags);
+    assert.equal(result.tags[4].id,'s4');assert.equal(result.tags[4].name,'Not Planned');
+    assert.throws(()=>planStatusTags([...tags,{...tags[4],id:'duplicate',name:'Not Planned'}]),/Ambiguous/);
+  }
+});

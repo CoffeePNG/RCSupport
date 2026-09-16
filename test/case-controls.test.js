@@ -75,7 +75,7 @@ test('native close and reopen preserve claims on close, clear on reopen and reco
   const h=harness();await controls.applyAction(h.ctx,h.post,'lead','claim',0);
   await controls.applyAction(h.ctx,h.post,'other','resolved',1);
   assert.deepEqual(h.thread.appliedTags,['resolved','closed']);assert.equal(h.sent.size,1);
-  assert.deepEqual(h.starter.components[0].toJSON().components.map(b=>b.label),['Reopen']);
+  assert.deepEqual(h.starter.components[0].toJSON().components.map(b=>b.label),['Reopen','Delete']);
   await assert.rejects(()=>controls.applyAction(h.ctx,h.post,'lead','resolved',1),/changed/);
   await controls.applyAction(h.ctx,h.post,'lead','reopen',2);
   assert.equal(state.get(h.post).claimant,null);assert.deepEqual(h.thread.appliedTags,['open']);
@@ -137,7 +137,7 @@ test('reconciliation attaches controls to existing bot posts and reflects extern
   await h.reconcile();
   assert.deepEqual(h.starter.components[0].toJSON().components.map(b=>b.label),['Claim','Close']);
   h.external('resolved');await h.reconcile();
-  assert.deepEqual(h.starter.components[0].toJSON().components.map(b=>b.label),['Reopen']);
+  assert.deepEqual(h.starter.components[0].toJSON().components.map(b=>b.label),['Reopen','Delete']);
   assert.deepEqual(h.starter.embeds,[{title:'Original',description:'Keep this'}]);
 });
 test('expired and stale confirmations cannot close a changed report',async()=>{
@@ -191,4 +191,16 @@ test('poll repair keeps report content and reserves a stable shared number for m
   assert.equal(edited.embeds[0].toJSON().description,original.toJSON().description);
   assert.deepEqual(requests,['thread:post']);
   thread.name=renamed;await repairNativeReportTitle(ctx,thread);assert.equal(requests.length,1);
+});
+
+test('close choices and confirmation use Not Planned without malformed characters',async()=>{
+  const h=harness();
+  const first=interaction(h,'close:0','lead','new-label');await controls.handleControl(h.ctx,first);
+  assert.deepEqual(first.result.components[0].toJSON().components.map(b=>b.label),['Resolved','Not Planned','Cancel']);
+  const choice=interaction(h,'choose_wontfix:new-label');await controls.handleControl(h.ctx,choice);
+  assert.match(choice.result.content,/Not Planned/);
+  assert.equal(choice.result.components[0].toJSON().components[0].label,'Close as Not Planned');
+  await controls.renderControls(h.ctx,h.thread,'wontfix');
+  assert.ok(h.starter.content.includes('Not Planned | Unclaimed'));
+  assert.ok(!h.starter.content.includes('\uFFFD'));
 });

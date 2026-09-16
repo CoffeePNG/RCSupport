@@ -1,3 +1,4 @@
+import { confirmThreadDeletion } from "./deleteThread";
 import { Interaction } from "discord.js";
 import { BUGTHREAD_BUTTON_ID, BUGTHREAD_MODAL_ID } from "./commands/bugreport";
 import { RCSupportForum } from "./forum";
@@ -7,6 +8,10 @@ export async function handleBugReportsInteraction(interaction: Interaction, rcFo
   if (!rcForum) return false;
   if (interaction.isModalSubmit() && interaction.customId === BUGTHREAD_MODAL_ID) {
     await submitBugModal(interaction, rcForum);
+    return true;
+  }
+  if (interaction.isButton() && /^rcsupport:case:delete:\d+$/.test(interaction.customId)) {
+    await confirmThreadDeletion(interaction, rcForum);
     return true;
   }
   if (interaction.isButton() && interaction.customId.startsWith("rcsupport:case:")) {

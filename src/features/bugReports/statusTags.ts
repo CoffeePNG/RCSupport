@@ -5,11 +5,12 @@ export const STATUS_PRESENTATION: Record<TicketStatus, { name: string; emoji: st
   acknowledged: { name: "Acknowledged", emoji: "👀" },
   in_progress: { name: "In Progress", emoji: "🔧" },
   resolved: { name: "Resolved", emoji: "✅" },
-  wontfix: { name: "Won’t Fix", emoji: "⛔" },
+  wontfix: { name: "Not Planned", emoji: "⛔" },
 };
 export const CLOSED_TAG_NAME = "Closed";
 export const isClosed = (status: TicketStatus): boolean => status === "resolved" || status === "wontfix";
 export function statusKey(name: string): TicketStatus | undefined {
+  if (name === "Won’t Fix" || name === "Won't Fix" || name === "Won\uFFFDt Fix") return "wontfix";
   return STATUSES.find(key => key === name || STATUS_PRESENTATION[key].name === name);
 }
 interface Tag { id: string; name: string; moderated: boolean; emoji: { id: string | null; name: string | null } | null }

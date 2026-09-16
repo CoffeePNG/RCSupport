@@ -4,7 +4,7 @@ import { getLeads, getTicketType } from "../tickets/ticketConfigRepo";
 import { controlRows, renderControls } from "./caseControls";
 import * as repo from "./repo";
 import { reportEmbedBatches } from "./reportEmbeds";
-import { replaceStatusTag } from "./statusTags";
+import { isClosed, replaceStatusTag } from "./statusTags";
 import { PluginTicket } from "./types";
 
 import type { ForumContext } from "./forumContext";
@@ -92,7 +92,7 @@ export async function createNativePost(ctx: ForumContext, description: string, r
   return post;
 }
 
-export async function deletionTarget(ctx: ForumContext, guildId: string, postId: string, actorId: string): Promise<ThreadChannel> {
+export async function deletionTarget(ctx: ForumContext, guildId: string, postId: string, actorId: string, requireClosed = false): Promise<ThreadChannel> {
   const forum = ctx.getForum();
   if (guildId !== forum.guildId) throw new Error("Use this command in the configured bug Forum's server.");
   const member = await forum.guild.members.fetch({ user: actorId, force: true });
@@ -102,12 +102,19 @@ export async function deletionTarget(ctx: ForumContext, guildId: string, postId:
   if (!thread || thread.parentId !== forum.id || !repo.byPost(postId)) throw new Error("Choose a tracked RCSupport report thread in the configured Forum.");
   if (!thread.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageThreads])) throw new Error("You need View Channel and Manage Threads in this report thread.");
   if (!thread.client.user || !thread.permissionsFor(thread.client.user)?.has(PermissionFlagsBits.ManageThreads)) throw new Error("The bot needs permission to delete this thread (Manage Threads).");
+  if (requireClosed) {
+    const mapping = repo.byPost(postId)!;
+    const closed = mapping.pluginTicketId !== null
+      ? isClosed((await ctx.api.ticket(mapping.pluginTicketId)).ticket.status)
+      : thread.appliedTags.includes(ctx.tag("resolved")) || thread.appliedTags.includes(ctx.tag("wontfix"));
+    if (!closed) throw new Error("This report is open. Close it before using Delete.");
+  }
   return thread;
 }
 
-export async function deleteReportThread(ctx: ForumContext, guildId: string, postId: string, actorId: string): Promise<void> {
+export async function deleteReportThread(ctx: ForumContext, guildId: string, postId: string, actorId: string, requireClosed = false): Promise<void> {
   await ctx.serial(postId, async () => {
-    const thread = await ctx.deletionTarget(guildId, postId, actorId);
+    const thread = await ctx.deletionTarget(guildId, postId, actorId, requireClosed);
     await thread.delete(`RCSupport thread deletion confirmed by ${actorId}`);
     repo.recordThreadDeleted(postId, actorId);
   });
