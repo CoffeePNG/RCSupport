@@ -1,3 +1,4 @@
+import { unknownChannel } from "./deletionSync";
 import { repairNativeReportTitle } from "./nativeReportTitles";
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, MessageFlags, ThreadChannel, PermissionFlagsBits } from "discord.js";
 import type { ForumContext } from "./forumContext";
@@ -184,7 +185,10 @@ export async function reconcileControls(ctx: ForumContext): Promise<void> {
         await renderControls(ctx,thread,fresh.status);
         if (repo.byPost(post)?.pluginTicketId === null) await repairNativeReportTitle(ctx,thread);
       });
-    } catch(error) { ctx.reportSyncError(0,"refresh controls for "+post,error); }
+    } catch(error) {
+      if (unknownChannel(error)) repo.recordThreadDeleted(post, "Discord missing thread");
+      else ctx.reportSyncError(0,"refresh controls for "+post,error);
+    }
     finally { state.ensure(post,"open"); state.checked(post); }
   }
 }

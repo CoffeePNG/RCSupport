@@ -20,7 +20,7 @@ export async function confirmThreadDeletion(interaction: ChatInputCommandInterac
     const cancelId = `rcsupport:keep:${interaction.id}`;
     const message = await interaction.editReply({
       embeds: [new EmbedBuilder().setColor(0xE06C75).setTitle("Delete report thread?")
-        .setDescription(`Delete **${target.name.replace(/[\\*_`~|]/g, "")}** (<#${postId}>) and all its Discord messages?\n\nThis cannot be undone. The saved Minecraft report and history remain. This thread will not be recreated, and future report notifications to it will stop.`)],
+        .setDescription(`Delete **${target.name.replace(/[\\*_`~|]/g, "")}** (<#${postId}>) and all its Discord messages?\n\nThis cannot be undone. Report details remain; saved conversation history expires after 72 hours. This thread will not be recreated, and future report notifications to it will stop.`)],
       components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(confirmId).setLabel("Delete thread").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId(cancelId).setLabel("Keep thread").setStyle(ButtonStyle.Primary),
@@ -40,7 +40,7 @@ export async function confirmThreadDeletion(interaction: ChatInputCommandInterac
     await button.update({ content: "Deleting the selected report thread…", embeds: [], components: [] });
     await forum.deleteReportThread(interaction.guildId!, postId, interaction.user.id, fromButton);
     // Discord may no longer allow editing an interaction whose originating thread was deleted.
-    await interaction.editReply({ content: "Report thread deleted. The saved Minecraft report and history were retained.", embeds: [], components: [] }).catch(() => {});
+    await interaction.editReply({ content: "Report thread deleted. Report details are retained; saved history will expire after 72 hours.", embeds: [], components: [] }).catch(() => {});
   } catch (error) {
     await interaction.editReply({ content: error instanceof Error ? error.message : "Could not delete this report thread.", embeds: [], components: [], allowedMentions: { parse: [] } });
   }

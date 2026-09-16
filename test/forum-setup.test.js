@@ -15,10 +15,11 @@ CREATE TABLE IF NOT EXISTS rcsupport_closure_notices (
   event_key TEXT PRIMARY KEY, post_id TEXT NOT NULL, actor TEXT NOT NULL, closed_at INTEGER NOT NULL,
   message_id TEXT, attempted_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS rcsupport_deletion_cleanup(post_id TEXT PRIMARY KEY, bridge_synced INTEGER DEFAULT 0, checked_at INTEGER DEFAULT 0, purged_at INTEGER);
 CREATE TABLE IF NOT EXISTS rcsupport_deleted_threads (post_id TEXT PRIMARY KEY, deleted_by TEXT NOT NULL, deleted_at INTEGER NOT NULL);
 `);
 after(() => db.close());
-require.cache[require.resolve('../dist/db/connect')] = { exports: { db } };
+require.cache[require.resolve('../dist/db/connect')] = { exports: { db: {prepare: sql=>db.prepare(sql), transaction: fn=>()=>{db.exec('BEGIN');try{fn();db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}}} } };
 require.cache[require.resolve('../dist/features/bugReports/events')] = { exports: { subscribeReports: () => () => {} } };
 require.cache[require.resolve('../dist/features/bugReports/caseControls')] = { exports: {
   controlRows:()=>[],renderControls:async()=>{},reconcileControls:async()=>{}
@@ -27,6 +28,8 @@ const { RCSupportForum } = require('../dist/features/bugReports/forum');
 const { BridgeClient } = require('../dist/features/bugReports/api');
 const realReconcileHistories = RCSupportForum.prototype.reconcileHistories;
 RCSupportForum.prototype.reconcileHistories = async () => {}; // Legacy status tests isolate history I/O.
+BridgeClient.prototype.pendingDeletions = async () => [];
+BridgeClient.prototype.confirmThreadDeleted = async () => ({});
 BridgeClient.prototype.statusUpdates = async () => [];
 BridgeClient.prototype.outboundReplies = async () => [];
 BridgeClient.prototype.markThreadUnavailable = async () => ({});
@@ -70,7 +73,7 @@ test('Forum setup preserves tags, persists selection, and rejects another guild'
     assert.deepEqual(channel.availableTags[0], original);
     await service.setup(client, 'guild', 'forum');
     assert.equal(edits, 1);
-    assert.equal(listeners, 2);
+    assert.equal(listeners, 3);
     await restored.start(client);
     assert.equal(restored.getForum().id, 'forum');
     await assert.rejects(service.setup(client, 'other-guild', 'forum'), /current Forum/);

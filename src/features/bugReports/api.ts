@@ -43,6 +43,10 @@ export class BridgeClient {
   reserveReportNumber(requestId: string): Promise<{ id: number }> {
     return this.request("POST", "/api/v1/report-numbers", { request_id: requestId });
   }
+  pendingDeletions(after = 0): Promise<PluginTicket[]> { return this.request("GET", `/api/v1/deletions?after=${after}`); }
+  confirmThreadDeleted(id: number, post: string): Promise<unknown> {
+    return this.request("POST", `/api/v1/tickets/${id}/thread-deleted`, {post_id:post});
+  }
   markThreadUnavailable(id: number, post: string): Promise<unknown> {
     return this.request("POST", `/api/v1/tickets/${id}/thread-unavailable`, {post_id:post});
   }

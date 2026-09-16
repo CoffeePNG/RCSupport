@@ -56,7 +56,7 @@ export function usedClosureMessage(id: string): boolean {
 }
 export function threadDeleted(id: string): boolean { return !!db.prepare("SELECT 1 FROM rcsupport_deleted_threads WHERE post_id = ?").get(id); }
 export function recordThreadDeleted(id: string, actor: string): void {
-  db.prepare("INSERT OR REPLACE INTO rcsupport_deleted_threads VALUES (?, ?, ?)").run(id, actor, Math.floor(Date.now() / 1000));
+  db.prepare("INSERT OR IGNORE INTO rcsupport_deleted_threads (post_id, deleted_by, deleted_at) VALUES (?, ?, ?)").run(id, actor, Math.floor(Date.now() / 1000));
   db.prepare("UPDATE rcsupport_closure_notices SET message_id = 'thread-deleted' WHERE post_id = ? AND message_id IS NULL").run(id);
 }
 
@@ -75,4 +75,30 @@ export function saveHistoryCursor(postId: string, cursor: HistoryCursor): void {
 }
 export function historyCandidates(): PostMapping[] {
   return (db.prepare("SELECT p.* FROM rcsupport_posts p LEFT JOIN rcsupport_history_sync h ON h.post_id = p.discord_post_id LEFT JOIN rcsupport_deleted_threads d ON d.post_id = p.discord_post_id WHERE p.plugin_ticket_id IS NOT NULL AND p.api_acknowledged = 1 AND d.post_id IS NULL ORDER BY COALESCE(h.checked_at, 0), p.discord_post_id LIMIT 5").all() as any[]).map(row => mapping(row)!);
+}
+
+export function pendingDeletions(): {post_id: string; ticket_id: number}[] {
+  return db.prepare(`SELECT d.post_id, p.plugin_ticket_id AS ticket_id FROM rcsupport_deleted_threads d
+    JOIN rcsupport_posts p ON p.discord_post_id=d.post_id
+    LEFT JOIN rcsupport_deletion_cleanup c ON c.post_id=d.post_id
+    WHERE p.plugin_ticket_id IS NOT NULL AND COALESCE(c.bridge_synced,0)=0
+    ORDER BY COALESCE(c.checked_at,0), d.post_id LIMIT 50`).all() as {post_id: string; ticket_id: number}[];
+}
+export function deletionSyncAttempt(post: string, succeeded: boolean): void {
+  db.prepare(`INSERT INTO rcsupport_deletion_cleanup(post_id,bridge_synced,checked_at) VALUES (?,?,?)
+    ON CONFLICT(post_id) DO UPDATE SET bridge_synced=excluded.bridge_synced,checked_at=excluded.checked_at`)
+    .run(post, succeeded ? 1 : 0, Date.now());
+}
+export function purgeDeletedHistory(now = Math.floor(Date.now()/1000)): void {
+  db.transaction(() => {
+    const due = db.prepare(`SELECT d.post_id FROM rcsupport_deleted_threads d
+      LEFT JOIN rcsupport_deletion_cleanup c ON c.post_id=d.post_id
+      WHERE d.deleted_at <= ? AND c.purged_at IS NULL`).all(now - 72*60*60) as {post_id:string}[];
+    for (const {post_id} of due) {
+      for (const table of ["rcsupport_history_sync", "rcsupport_closure_notices", "rcsupport_reply_receipts", "rcsupport_case_controls"])
+        db.prepare(`DELETE FROM ${table} WHERE post_id=?`).run(post_id);
+      db.prepare(`INSERT INTO rcsupport_deletion_cleanup(post_id,purged_at) VALUES (?,?)
+        ON CONFLICT(post_id) DO UPDATE SET purged_at=excluded.purged_at`).run(post_id,now);
+    }
+  })();
 }

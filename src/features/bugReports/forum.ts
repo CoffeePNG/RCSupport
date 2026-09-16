@@ -6,6 +6,7 @@ import { subscribeReports } from "./events";
 import type { ForumContext } from "./forumContext";
 import { reconcileReplies } from "./replySync";
 import { handleControl, reconcileControls } from "./caseControls";
+import * as deletionSync from "./deletionSync";
 import * as historySync from "./historySync";
 import { shouldCreatePost } from "./policy";
 import * as posts from "./posts";
@@ -73,6 +74,9 @@ export class RCSupportForum {
     console.log(`RCSupport Forum ready: guild=${channel.guildId} forum=${channel.id}; polling every ${this.config.pollIntervalMs}ms; report-renderer=structured-v2; setup=assign`);
     if (!this.listening) {
     client.on("messageCreate", (message) => { void this.onMessage(message).catch((e) => console.error("RCSupport reply sync failed:", e)); });
+    client.on("threadDelete", thread => {
+      void deletionSync.onThreadDelete(this.context, thread).catch(e => console.error("RCSupport deletion sync failed:", e));
+    });
     client.on("threadUpdate", (oldThread, newThread) => {
       void this.onThreadUpdate(oldThread, newThread).catch((e) => console.error("RCSupport status sync failed:", e));
     });
@@ -136,6 +140,7 @@ export class RCSupportForum {
     try {
       // Process durable changes before the legacy open-report listing. A large open
       // listing or an individual deleted post must not starve closed status updates.
+      await deletionSync.reconcileDeletions(this.context);
       await reconcileControls(this.context);
       await statusSync.reconcileStatuses(this.context);
       await this.acknowledgePending();

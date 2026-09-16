@@ -85,6 +85,7 @@ export function migrateDatabase(db: Database.Database): void {
     event_key TEXT PRIMARY KEY, post_id TEXT NOT NULL, actor TEXT NOT NULL, closed_at INTEGER NOT NULL,
     message_id TEXT, attempted_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS rcsupport_deletion_cleanup (post_id TEXT PRIMARY KEY, bridge_synced INTEGER NOT NULL DEFAULT 0, checked_at INTEGER NOT NULL DEFAULT 0, purged_at INTEGER);
   CREATE TABLE IF NOT EXISTS rcsupport_deleted_threads (post_id TEXT PRIMARY KEY, deleted_by TEXT NOT NULL, deleted_at INTEGER NOT NULL);
 
     CREATE TABLE IF NOT EXISTS rcsupport_posts (

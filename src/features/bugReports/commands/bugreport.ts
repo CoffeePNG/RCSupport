@@ -40,7 +40,7 @@ function adminCommand(): Command {
       try {
         const id = interaction.options.getString("thread", true);
         await forum.markThreadDeleted(interaction.guildId, id, interaction.user.id);
-        await interaction.editReply({ content: `Thread ${id} is marked deleted. Polling and recreation are disabled for it; saved report data and history are retained.` });
+        await interaction.editReply({ content: `Thread ${id} is marked deleted. Polling and recreation are disabled for it; report details are retained and saved history expires after 72 hours.` });
       } catch (error) {
         await interaction.editReply({ content: error instanceof Error ? error.message : "Could not mark the thread deleted.", allowedMentions: {parse:[]} });
       }

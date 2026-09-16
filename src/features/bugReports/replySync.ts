@@ -49,8 +49,6 @@ export async function deliverReply(thread: ThreadChannel, reply: OutboundReply, 
 export async function reconcileReplies(ctx: ForumContext): Promise<void> {
   // One bounded page per poll with a rotating cursor so an outage on one thread
   // cannot starve replies belonging to other reports.
-  for (const row of db.prepare("SELECT p.plugin_ticket_id AS id, d.post_id FROM rcsupport_deleted_threads d JOIN rcsupport_posts p ON p.discord_post_id=d.post_id WHERE p.plugin_ticket_id IS NOT NULL").all() as {id:number;post_id:string}[])
-    await ctx.api.markThreadUnavailable(row.id,row.post_id);
   const replies=await ctx.api.outboundReplies(cursors.get(ctx) ?? 0);
   if (!replies.length) { cursors.set(ctx,0); return; }
   for (const reply of replies) {
