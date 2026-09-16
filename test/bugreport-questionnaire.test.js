@@ -47,7 +47,7 @@ test('maximum answers survive submission and stay below native embed limit', asy
   const f=fixture(values); await panel.submitBugModal(f.interaction,f.forum);
   for (const value of Object.values(values)) assert.ok(f.calls.post[0].includes(Array.isArray(value)?value[0]:value));
   assert.ok(f.calls.post[0].length<=4000);
-  assert.equal(f.calls.defer.flags,64); assert.ok(f.calls.result.content.includes('<#report>'));
+  assert.equal(f.calls.defer.flags,64); assert.equal(f.calls.result.content, 'Report made at <#report>');
 });
 test('access denial and whitespace-only required answers cannot create reports', async()=>{
   const denied=fixture({},false); await panel.openBugModal(denied.interaction,denied.forum);
@@ -68,5 +68,39 @@ test('in-game required fields suffice; unknown categories and invalid links are 
   for (const invalid of [{...values,category:['Unknown']},{...values,evidence:'javascript:alert(1)'}, {...values,evidence:'https://user:password@example.com/'}]) {
     const f=fixture(invalid);await panel.submitBugModal(f.interaction,f.forum);
     assert.equal(f.calls.post,undefined);assert.ok(f.calls.reply);
+  }
+});
+
+test('real Discord label/select submission parsing reaches thread creation', async()=>{
+  const {Client, ModalSubmitInteraction, ComponentType} = require('discord.js');
+  const client = new Client({intents:[]});
+  const interaction = new ModalSubmitInteraction(client, {
+    id:'123456789012345678',application_id:'123456789012345679',token:'test',type:5,
+    guild_id:'guild',user:{id:'123456789012345680',username:'Reporter',discriminator:'0',avatar:null},
+    locale:'en-US',entitlements:[],authorizing_integration_owners:{},
+    data:{custom_id:'rcsupport:submit',components:[
+      {type:ComponentType.Label,component:{type:ComponentType.StringSelect,custom_id:'category',values:['Gameplay']}},
+      ...[['summary','Broken door'],['description','Door does not open'],['steps',''],['evidence','']].map(([id,value])=>
+        ({type:ComponentType.Label,component:{type:ComponentType.TextInput,custom_id:id,value}})),
+    ]},
+  });
+  const f=fixture();
+  interaction.deferReply=f.interaction.deferReply;interaction.editReply=f.interaction.editReply;
+  interaction.reply=f.interaction.reply;
+  await panel.submitBugModal(interaction,f.forum);
+  assert.ok(f.calls.post[0].includes('Door does not open'));
+  assert.equal(f.calls.result.content, 'Report made at <#report>');
+  client.destroy();
+});
+test('thread creation errors finish the deferred response with actionable diagnostics', async()=>{
+  for (const code of [50013,50001,10003,50035,undefined]) {
+    const f=fixture({category:['Gameplay'],summary:'Title',description:'Details'});
+    f.forum.createNativePost=async()=>{throw Object.assign(new Error('test failure'),{code});};
+    const log=console.error;console.error=()=>{};
+    try { await panel.submitBugModal(f.interaction,f.forum); } finally { console.error=log; }
+    assert.equal(f.calls.defer.flags,64);
+    assert.ok(f.calls.result.content.includes('Could not finish creating'));
+    if (code) assert.ok(f.calls.result.content.includes(String(code)));
+    assert.ok(!f.calls.result.content.includes('Report made at'));
   }
 });

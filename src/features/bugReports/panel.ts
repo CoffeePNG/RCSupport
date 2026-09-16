@@ -26,7 +26,7 @@ export async function openBugModal(interaction: ButtonInteraction | ChatInputCom
     ["summary", "Title", 100, true],
     ["description", "Description", 2000, true],
     ["steps", "Reproduction steps (optional)", 1000, false],
-    ["evidence", "Screenshot / video link (optional)", 500, false],
+    ["evidence", "Evidence (optional)", 500, false],
   ] as const) {
     const input = new TextInputBuilder().setCustomId(id)
       .setStyle(id === "summary" ? TextInputStyle.Short : TextInputStyle.Paragraph)
@@ -72,6 +72,20 @@ export async function submitBugModal(interaction: ModalSubmitInteraction, forum:
     `**Steps to reproduce**\n${steps}`, `**Expected behavior**\n${expected}`,
     ...(evidence ? [`**Evidence**\n${evidence}`] : [])].join("\n\n") : details;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const post = await forum.createNativePost(description, interaction.user.id);
-  await interaction.editReply({ content: `Bug report created: <#${post.id}>` });
+  let post;
+  try {
+    post = await forum.createNativePost(description, interaction.user.id);
+  } catch (error) {
+    // Do not leave a deferred submission stuck at “thinking” after Discord/API failures.
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+    console.error("RCSupport Discord report submission failed:", error);
+    const detail = code === "50013" || code === "50001"
+      ? "The bot cannot access or post in the bug-report Forum. An admin needs to check its channel permissions."
+      : code === "10003"
+        ? "The configured bug-report Forum no longer exists. An admin needs to run /br setup."
+        : "An admin needs to check the bot logs and the configured bug-report Forum.";
+    await interaction.editReply({ content: `Could not finish creating your report. ${detail}${code && /^\d+$/.test(code) ? ` (Error ${code})` : ""} Check the Forum before retrying in case the post was created before the error.` });
+    return;
+  }
+  await interaction.editReply({ content: `Report made at <#${post.id}>` });
 }
