@@ -23,7 +23,7 @@ function fixture(values = {}, allowed = true) {
     getForum: () => ({guildId:'guild', permissionsFor:()=>({has:()=>allowed})}),
     createNativePost: async (...args) => { calls.post = args; return {id:'report'}; },
   }, interaction: {
-    guildId:'guild', user:{id:'user'},
+    id:'submission',guildId:'guild', user:{id:'user'},
     fields:{fields:new Map(Object.entries(values)), getTextInputValue:id=>values[id], getStringSelectValues:id=>values[id]},
     showModal:async modal=>{calls.modal=modal.toJSON();},
     reply:async data=>{calls.reply=data;}, deferReply:async data=>{calls.defer=data;},
@@ -58,7 +58,7 @@ test('access denial and whitespace-only required answers cannot create reports',
 });
 test('previously opened description-only forms still submit', async()=>{
   const f=fixture({description:'Legacy report'});await panel.submitBugModal(f.interaction,f.forum);
-  assert.deepEqual(f.calls.post,['Legacy report','user']);
+  assert.deepEqual(f.calls.post,['Legacy report','user','Legacy report','discord:submission']);
 });
 
 test('in-game required fields suffice; unknown categories are rejected', async()=>{

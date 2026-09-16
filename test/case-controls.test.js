@@ -159,9 +159,36 @@ test('new native and Minecraft report starters include controls immediately',asy
   const payloads=[],fake={id:'create-forum',threads:{create:async payload=>{
     payloads.push(payload);return {id:String(700+payloads.length),send:async()=>{}};
   }}};
-  const ctx={getForum:()=>fake,mentionLeads:async()=>[],tag:s=>s,api:{setPost:async()=>{}},};
+  const ctx={getForum:()=>fake,mentionLeads:async()=>[],tag:s=>s,api:{setPost:async()=>{},reserveReportNumber:async()=>({id:702})},};
   fake.availableTags=[{id:'open',name:'open'}];
-  await createNativePost(ctx,'A Discord report','reporter');
+  await createNativePost(ctx,'A Discord report\n\n**Category**\nGameplay\n\n**Description**\nBroken door','reporter','A Discord report');
+  assert.equal(payloads[0].name,'#702 A Discord report');
+  assert.ok(payloads[0].message.embeds[0].toJSON().description.includes('**Category**'));
   await createPluginPost(ctx,{id:701,description:'A Minecraft report',reporter_name:'Tester',reporter_uuid:'uuid',discord_id:'reporter',server_id:'test',status:'open',created_at:1});
   for(const payload of payloads)assert.deepEqual(payload.message.components[0].toJSON().components.map(b=>b.label),['Claim','Close']);
+});
+
+test('shared numbering must succeed before Discord creates a native thread',async()=>{
+  const {createNativePost}=require('../dist/features/bugReports/posts');
+  let created=0;
+  const ctx={getForum:()=>({threads:{create:async()=>{created++;}}}),mentionLeads:async()=>[],api:{reserveReportNumber:async()=>{throw new Error('Bridge unavailable');}}};
+  await assert.rejects(createNativePost(ctx,'Details','user','Title','discord:1'),/Bridge unavailable/);
+  assert.equal(created,0);
+  ctx.api.reserveReportNumber=async()=>({id:0});
+  await assert.rejects(createNativePost(ctx,'Details','user','Title','discord:1'),/invalid report number/);
+  assert.equal(created,0);
+});
+
+test('poll repair keeps report content and reserves a stable shared number for malformed titles',async()=>{
+  const {repairNativeReportTitle}=require('../dist/features/bugReports/nativeReportTitles');
+  const {EmbedBuilder}=require('discord.js');
+  const original=new EmbedBuilder().setTitle('Bug Report').setDescription('Door broken\n\n**Category**\nGameplay\n\n**Description**\nDetails');
+  let edited,renamed,requests=[];
+  const ctx={api:{reserveReportNumber:async key=>{requests.push(key);return {id:42};}}};
+  const thread={id:'post',name:'Door broken **Category** Gameplay',fetchStarterMessage:async()=>({editable:true,embeds:[original.toJSON()],edit:async value=>edited=value}),setName:async value=>renamed=value};
+  await repairNativeReportTitle(ctx,thread);
+  assert.equal(renamed,'#42 Door broken');
+  assert.equal(edited.embeds[0].toJSON().description,original.toJSON().description);
+  assert.deepEqual(requests,['thread:post']);
+  thread.name=renamed;await repairNativeReportTitle(ctx,thread);assert.equal(requests.length,1);
 });

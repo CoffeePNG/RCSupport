@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { EmbedBuilder, PermissionFlagsBits, ThreadChannel } from "discord.js";
 import { getLeads, getTicketType } from "../tickets/ticketConfigRepo";
 import { controlRows, renderControls } from "./caseControls";
@@ -73,14 +74,16 @@ export async function createPluginPost(ctx: ForumContext, ticket: PluginTicket):
   repo.acknowledge(post.id);
 }
 
-export async function createNativePost(ctx: ForumContext, description: string, reporterId: string): Promise<ThreadChannel> {
+export async function createNativePost(ctx: ForumContext, description: string, reporterId: string, title = description.split(/\r?\n/)[0], requestId = `discord:${randomUUID()}`): Promise<ThreadChannel> {
   const leads = await ctx.mentionLeads();
+  const { id } = await ctx.api.reserveReportNumber(requestId);
+  if (!Number.isSafeInteger(id) || id < 1) throw new Error("Bridge returned an invalid report number");
   const post = await ctx.getForum().threads.create({
-    name: description.replace(/\s+/g, " ").slice(0, 100),
+    name: `#${id} ${title}`.replace(/\s+/g, " ").trim().slice(0, 100),
     appliedTags: [ctx.tag("open")],
     message: {
       content: [`Reporter: <@${reporterId}>`, ...leads.map((id) => `<@${id}>`)].join(" "),
-      embeds: [new EmbedBuilder().setTitle("Bug Report").setDescription(description.slice(0, 4000))],
+      embeds: [new EmbedBuilder().setTitle(`RCSupport • Bug #${id}`).setDescription(description.slice(0, 4000))],
       components: controlRows("open"),
       allowedMentions: { parse: [], users: leads },
     },

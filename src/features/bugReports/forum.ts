@@ -210,8 +210,8 @@ export class RCSupportForum {
   private createPluginPost(ticket: PluginTicket): Promise<void> {
     return posts.createPluginPost(this.context, ticket);
   }
-  createNativePost(description: string, reporterId: string): Promise<ThreadChannel> {
-    return posts.createNativePost(this.context, description, reporterId);
+  createNativePost(description: string, reporterId: string, title?: string, requestId?: string): Promise<ThreadChannel> {
+    return posts.createNativePost(this.context, description, reporterId, title, requestId);
   }
   deletionTarget(guildId: string, postId: string, actorId: string): Promise<ThreadChannel> {
     return posts.deletionTarget(this.context, guildId, postId, actorId);

@@ -40,6 +40,9 @@ export class BridgeClient {
     });
   }
 
+  reserveReportNumber(requestId: string): Promise<{ id: number }> {
+    return this.request("POST", "/api/v1/report-numbers", { request_id: requestId });
+  }
   markThreadUnavailable(id: number, post: string): Promise<unknown> {
     return this.request("POST", `/api/v1/tickets/${id}/thread-unavailable`, {post_id:post});
   }

@@ -63,7 +63,7 @@ export async function submitBugModal(interaction: ModalSubmitInteraction, forum:
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   let post;
   try {
-    post = await forum.createNativePost(description, interaction.user.id);
+    post = await forum.createNativePost(description, interaction.user.id, summary || details.split(/\r?\n/)[0], `discord:${interaction.id}`);
   } catch (error) {
     // Do not leave a deferred submission stuck at “thinking” after Discord/API failures.
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
