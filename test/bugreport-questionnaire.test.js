@@ -61,11 +61,11 @@ test('previously opened description-only forms still submit', async()=>{
   assert.deepEqual(f.calls.post,['Legacy report','user']);
 });
 
-test('in-game required fields suffice; unknown categories and invalid links are rejected', async()=>{
+test('in-game required fields suffice; unknown categories are rejected', async()=>{
   const values={category:['Gameplay'],summary:'X',description:'Y'};
   const f=fixture(values); await panel.submitBugModal(f.interaction,f.forum);
   assert.ok(f.calls.post[0].includes('Gameplay'));
-  for (const invalid of [{...values,category:['Unknown']},{...values,evidence:'javascript:alert(1)'}, {...values,evidence:'https://user:password@example.com/'}]) {
+  for (const invalid of [{...values,category:['Unknown']}]) {
     const f=fixture(invalid);await panel.submitBugModal(f.interaction,f.forum);
     assert.equal(f.calls.post,undefined);assert.ok(f.calls.reply);
   }
@@ -102,5 +102,15 @@ test('thread creation errors finish the deferred response with actionable diagno
     assert.ok(f.calls.result.content.includes('Could not finish creating'));
     if (code) assert.ok(f.calls.result.content.includes(String(code)));
     assert.ok(!f.calls.result.content.includes('Report made at'));
+  }
+});
+
+test('optional evidence accepts multiple links or notes without a link-only rejection', async()=>{
+  for (const evidence of ['', 'See screenshots in the thread', 'https://example.com/image.png\nhttps://example.com/video.mp4']) {
+    const f=fixture({category:['Gameplay'],summary:'Title',description:'Details',evidence});
+    await panel.submitBugModal(f.interaction,f.forum);
+    assert.equal(f.calls.reply,undefined);
+    assert.equal(f.calls.result.content,'Report made at <#report>');
+    if (evidence) assert.ok(f.calls.post[0].includes(evidence));
   }
 });

@@ -26,7 +26,7 @@ export async function openBugModal(interaction: ButtonInteraction | ChatInputCom
     ["summary", "Title", 100, true],
     ["description", "Description", 2000, true],
     ["steps", "Reproduction steps (optional)", 1000, false],
-    ["evidence", "Evidence (optional)", 500, false],
+    ["evidence", "Screenshots / videos (optional)", 500, false],
   ] as const) {
     const input = new TextInputBuilder().setCustomId(id)
       .setStyle(id === "summary" ? TextInputStyle.Short : TextInputStyle.Paragraph)
@@ -50,17 +50,6 @@ export async function submitBugModal(interaction: ModalSubmitInteraction, forum:
   const category = categorized ? interaction.fields.getStringSelectValues("category")[0] : undefined;
   if (categorized && (!category || !BUG_REPORT_CATEGORIES.some(value => value === category))) {
     await interaction.reply({ content: "Choose a valid bug report category.", flags: MessageFlags.Ephemeral }); return;
-  }
-  if (categorized && evidence) {
-    let valid = false;
-    try {
-      const url = new URL(evidence);
-      valid = /^https?:$/.test(url.protocol) && !!url.hostname && !url.username && !url.password
-        && evidence.length <= 500 && !/\s/.test(evidence);
-    } catch { /* Show an actionable validation message below. */ }
-    if (!valid) {
-      await interaction.reply({ content: "Use a single HTTP or HTTPS screenshot/video link.", flags: MessageFlags.Ephemeral }); return;
-    }
   }
   const questionnaire = interaction.fields.fields.has("summary");
   if (!details || (questionnaire && !summary) || (!categorized && questionnaire && [summary, details, steps, expected].some(value => value.length < 3))) {
