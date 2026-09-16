@@ -204,3 +204,8 @@ test('close choices and confirmation use Not Planned without malformed character
   assert.ok(h.starter.content.includes('Not Planned | Unclaimed'));
   assert.ok(!h.starter.content.includes('\uFFFD'));
 });
+
+test('manually marked deleted threads are excluded from control polling',()=>{
+  const h=harness();repo.recordThreadDeleted(h.post,'admin');
+  assert.ok(!state.candidates().includes(h.post));assert.ok(repo.byPost(h.post));
+});

@@ -49,3 +49,5 @@ Recommend /bugreport leads add|remove|list, also available under /br if implemen
 8. Check a previously created report and an archived thread. Visual layout and runtime behavior have not yet been verified on the actual server.
 
 The stored/API status remains `wontfix`. Startup renames existing Won’t Fix tags to Not Planned in place, preserving tag IDs and report assignments.
+
+For threads deleted outside the bot, admins can run `/br mark-deleted thread:<id>`. The bot verifies the channel is missing (Discord 10003), then marks the existing mapping deleted to stop polling and recreation. Existing threads and permission-denied responses are refused. Saved report data/history remain.

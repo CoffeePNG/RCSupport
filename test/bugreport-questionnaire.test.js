@@ -34,7 +34,7 @@ test('bare /bugreport opens five fields; admin operations remain on /br', async(
   const data=commands.bugreportCommand.data.toJSON();
   assert.equal(data.name,'bugreport'); assert.equal(data.options.length,0);
   assert.equal(data.default_member_permissions,undefined);
-  assert.deepEqual(commands.brCommand.data.toJSON().options.map(o=>o.name),['setup','delete','refresh']);
+  assert.deepEqual(commands.brCommand.data.toJSON().options.map(o=>o.name),['setup','delete','mark-deleted','refresh']);
   const f=fixture(); await commands.bugreportCommand.execute(f.interaction,f.forum);
   assert.equal(f.calls.modal.components.length,5);
   const components=f.calls.modal.components.map(label=>label.component);

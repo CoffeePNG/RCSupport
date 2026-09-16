@@ -213,6 +213,9 @@ export class RCSupportForum {
   createNativePost(description: string, reporterId: string, title?: string, requestId?: string): Promise<ThreadChannel> {
     return posts.createNativePost(this.context, description, reporterId, title, requestId);
   }
+  markThreadDeleted(guildId: string, postId: string, actorId: string): Promise<void> {
+    return posts.markThreadDeleted(this.context, guildId, postId, actorId);
+  }
   deletionTarget(guildId: string, postId: string, actorId: string, requireClosed = false): Promise<ThreadChannel> {
     return posts.deletionTarget(this.context, guildId, postId, actorId, requireClosed);
   }

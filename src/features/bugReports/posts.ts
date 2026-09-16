@@ -119,3 +119,22 @@ export async function deleteReportThread(ctx: ForumContext, guildId: string, pos
     repo.recordThreadDeleted(postId, actorId);
   });
 }
+
+/** Record an already-missing Discord thread without deleting report data or a live channel. */
+export async function markThreadDeleted(ctx: ForumContext, guildId: string, postId: string, actorId: string): Promise<void> {
+  await ctx.serial(postId, async () => {
+    const forum = ctx.getForum();
+    if (guildId !== forum.guildId) throw new Error("Use this command in the configured bug Forum's server.");
+    const member = await forum.guild.members.fetch({ user: actorId, force: true });
+    if (!member.permissions.has(PermissionFlagsBits.ManageGuild)) throw new Error("Manage Server is required.");
+    if (!/^\d{17,20}$/.test(postId) || !repo.byPost(postId)) throw new Error("Choose a tracked RCSupport report thread ID.");
+    if (repo.threadDeleted(postId)) return;
+    try {
+      const thread = await forum.threads.fetch(postId, { force: true });
+      if (thread) throw new Error("This thread still exists. Use its Delete button or /br delete instead.");
+    } catch (error) {
+      if (!error || typeof error !== "object" || !("code" in error) || String(error.code) !== "10003") throw error;
+    }
+    repo.recordThreadDeleted(postId, actorId);
+  });
+}

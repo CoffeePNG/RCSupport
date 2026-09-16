@@ -20,6 +20,8 @@ function adminCommand(): Command {
         .addChannelTypes(ChannelType.GuildForum).setRequired(true)))
     .addSubcommand((sub) => sub.setName("delete").setDescription("Delete a report thread after confirmation; retain the saved report")
       .addStringOption(option => option.setName("thread").setDescription("Report thread ID; defaults to the thread you are in")))
+    .addSubcommand((sub) => sub.setName("mark-deleted").setDescription("Mark an already-missing report thread deleted; keep saved report data")
+      .addStringOption(option => option.setName("thread").setDescription("Missing report thread ID").setRequired(true)))
     .addSubcommand((sub) => sub.setName("refresh").setDescription("Restore a Minecraft report's saved details in its existing post")
       .addIntegerOption((option) => option.setName("report").setDescription("Minecraft report number")
         .setMinValue(1).setRequired(true))),
@@ -32,6 +34,17 @@ function adminCommand(): Command {
     }
     if (interaction.options.getSubcommand() === "delete") {
       await confirmThreadDeletion(interaction, forum); return;
+    }
+    if (interaction.options.getSubcommand() === "mark-deleted") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try {
+        const id = interaction.options.getString("thread", true);
+        await forum.markThreadDeleted(interaction.guildId, id, interaction.user.id);
+        await interaction.editReply({ content: `Thread ${id} is marked deleted. Polling and recreation are disabled for it; saved report data and history are retained.` });
+      } catch (error) {
+        await interaction.editReply({ content: error instanceof Error ? error.message : "Could not mark the thread deleted.", allowedMentions: {parse:[]} });
+      }
+      return;
     }
     if (interaction.options.getSubcommand() === "refresh") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });

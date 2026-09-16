@@ -491,3 +491,25 @@ test('closed-report deletion rechecks admin permissions and authoritative status
   service.api.ticket=async()=>({ticket:{status:'open'}});
   await assert.rejects(service.deletionTarget('guild',linked.id,'admin',true),/report is open/);
 });
+
+test('mark-deleted accepts only missing tracked threads and preserves saved data',async()=>{
+  const service=new RCSupportForum({forumChannelId:'forum',baseUrl:new URL('https://localhost')});
+  const id='1549578703682539681';repo.storePluginPost(88888,id,'reporter');repo.acknowledge(id);
+  let admin=true, fetches=0, response='missing';
+  service.forum={guildId:'guild',guild:{members:{fetch:async()=>({permissions:{has:()=>admin}})}},threads:{fetch:async(post,options)=>{
+    fetches++;assert.equal(options.force,true);
+    if(response==='exists')return {id:post};
+    if(response==='missing')throw Object.assign(new Error('Unknown Channel'),{code:10003});
+    throw Object.assign(new Error('Missing Access'),{code:50001});
+  }}};
+  await assert.rejects(service.markThreadDeleted('elsewhere',id,'admin'),/configured/);
+  admin=false;await assert.rejects(service.markThreadDeleted('guild',id,'lead'),/Manage Server/);admin=true;
+  await assert.rejects(service.markThreadDeleted('guild','1549578703682539682','admin'),/tracked/);
+  response='exists';await assert.rejects(service.markThreadDeleted('guild',id,'admin'),/still exists/);
+  response='denied';await assert.rejects(service.markThreadDeleted('guild',id,'admin'),/Missing Access/);
+  assert.equal(repo.threadDeleted(id),false);
+  response='missing';await service.markThreadDeleted('guild',id,'admin');
+  assert.equal(repo.threadDeleted(id),true);assert.ok(repo.byPluginTicket(88888));
+  assert.ok(!repo.historyCandidates().some(m=>m.discordPostId===id));
+  const before=fetches;await service.markThreadDeleted('guild',id,'admin');assert.equal(fetches,before);
+});
