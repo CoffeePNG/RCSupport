@@ -360,3 +360,13 @@ Minecraft `/bugreport history <id> [page]` reads the saved conversation privatel
 Normal reconciliation imports older/missed Discord messages one page of up to 100 per visit, rotating through at most five mapped threads per poll. Closed reports are included. Cursors survive restart and advance only after a complete page succeeds. The bridge deduplicates Discord message IDs, including uncertain request retries. Historical imports are silent. Deleted thread mappings are skipped, and unavailable threads retry without blocking later candidates. Grant View Channel and Read Message History, and retain the Message Content intent. Fetching history is subject to [Discord's message access requirements](https://docs.discord.com/developers/resources/message#get-channel-messages).
 
 Upgrade both sides and keep their databases. Old replies without message IDs are matched conservatively by exact author/body and a nearby original timestamp; ambiguous or edited legacy entries may overlap with imported history. Existing saved history is never deleted to resolve an ambiguity. The first imported copy is retained; message edits/deletions are not synchronized. Deleted messages cannot be recovered, attachment links may expire, and Discord-native reports without a Minecraft mapping are not imported. No new subscription or in-game reply commands are included.
+
+## Channel vault
+
+Server administrators can configure `/set-vault category:<category>` once per server, then run `/vault` inside a channel or `/vault channel:<channel>` from elsewhere. The destination persists across restarts. Both commands require Discord's Administrator permission at registration and execution; Manage Server alone is insufficient.
+
+Vaulting appends `-[Vaulted]` (Discord may normalize text-channel capitalization), moves the channel, and replaces every member/role overwrite with only an `@everyone` View Channel denial in one channel edit. Category permissions are not copied. Administrators and the server owner retain access. The bot must itself have Administrator permission; no non-admin bot exception is left behind. Existing messages are retained. Re-running the command does not duplicate the tag, and long names are shortened to fit Discord's 100-character limit.
+
+Threads and categories cannot be vaulted. A forum channel can be vaulted as a whole, including access to its posts. Old permission overrides are removed, not saved for restoration. Do not sync a vaulted channel to a more permissive category or add visibility overrides later if it must stay private.
+
+Restart with command registration enabled, or run `npm run deploy-commands`, to publish the new commands after deploying the build.

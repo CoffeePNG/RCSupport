@@ -136,6 +136,7 @@ export function migrateDatabase(db: Database.Database): void {
   ensureColumn("guild_settings", "todo_panel_message_id", "TEXT");
   ensureColumn("todos", "title", "TEXT NOT NULL DEFAULT ''");
   ensureColumn("guild_settings", "archive_log_channel_id", "TEXT");
+  ensureColumn("guild_settings", "vault_category_id", "TEXT");
 
   function columnIsNotNull(table: string, column: string): boolean {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {

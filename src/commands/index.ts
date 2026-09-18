@@ -19,7 +19,11 @@ import { taskCommand } from "../features/todo/commands/task";
 import { todoCommand } from "../features/todo/commands/todo";
 import { bugreportCommand, brCommand } from "../features/bugReports/commands/bugreport";
 
+import { setVaultCommand, vaultCommand } from "../features/vault/commands";
+
 export const commands: Command[] = [
+  setVaultCommand,
+  vaultCommand,
   ticketCreateCommand,
   staffAssignCommand,
   staffStatusCommand,

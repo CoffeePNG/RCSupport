@@ -39,6 +39,7 @@ export interface Warning {
 }
 
 export interface GuildSettings {
+  vaultCategoryId: string | null;
   guildId: string;
   modLogChannelId: string | null;
   panelChannelId: string | null;

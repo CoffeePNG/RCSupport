@@ -14,6 +14,7 @@ export function getGuildSettings(guildId: string): GuildSettings {
     .get(guildId) as any;
   return {
     guildId,
+    vaultCategoryId: row?.vault_category_id ?? null,
     modLogChannelId: row ? row.mod_log_channel_id : null,
     panelChannelId: row ? row.panel_channel_id : null,
     panelMessageId: row ? row.panel_message_id : null,
@@ -75,4 +76,13 @@ export function setPanelText(guildId: string, title: string | null, description:
        panel_title = excluded.panel_title,
        panel_description = excluded.panel_description`
   ).run(guildId, title, description);
+}
+
+/** Persist the vault destination independently for each server. */
+export function setVaultCategory(guildId: string, categoryId: string): void {
+  db.prepare(
+    `INSERT INTO guild_settings (guild_id, vault_category_id)
+     VALUES (?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET vault_category_id = excluded.vault_category_id`
+  ).run(guildId, categoryId);
 }
