@@ -1,3 +1,4 @@
+import { startZen } from "./services/zen";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { config } from "./config";
 import { commands } from "./commands/index";
@@ -35,6 +36,7 @@ async function registerCommands(clientId: string, guildIds: readonly string[]): 
 }
 
 client.once(Events.ClientReady, async (readyClient) => {
+  startZen(readyClient, `${config.databasePath}.zen.json`);
   try { await rcForum.start(readyClient); }
   catch (error) {
     console.error("RCSupport Forum needs setup. Run /br setup channel:<forum>:", error);

@@ -1,3 +1,4 @@
+import { zenCommand } from "../features/moderation/commands/zen";
 import { Command } from "./types";
 import { ticketCreateCommand } from "../features/tickets/commands/ticket-create";
 import { staffAssignCommand } from "../features/tickets/commands/staff-assign";
@@ -36,6 +37,7 @@ export const commands: Command[] = [
   kickCommand,
   purgeCommand,
   timeoutCommand,
+  zenCommand,
   warnCommand,
   unwarnCommand,
   warningsCommand,

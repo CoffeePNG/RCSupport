@@ -370,3 +370,9 @@ Vaulting appends `-[Vaulted]` (Discord may normalize text-channel capitalization
 Threads and categories cannot be vaulted. A forum channel can be vaulted as a whole, including access to its posts. Old permission overrides are removed, not saved for restoration. Do not sync a vaulted channel to a more permissive category or add visibility overrides later if it must stay private.
 
 Restart with command registration enabled, or run `npm run deploy-commands`, to publish the new commands after deploying the build.
+
+## Chill zone
+
+Run `/zen duration:10m` in a server text channel to temporarily disable sending messages and creating/speaking in threads. Duration is required (1m–7d; combinations such as 1h30m work). The public announcement is “Everyone must enter...........the chill zone :snowflake:” with the unlock time. Both the moderator and bot need Manage Roles; the moderator also needs Manage Channels. Administrators bypass Discord channel overwrites.
+
+Existing role and member speaking overrides are saved and restored, leaving unrelated permissions intact. Active locks persist alongside the configured database in `<DATABASE_PATH>.zen.json`; retain this file across deployments. Expired locks restore within five seconds while the bot is online, or on startup after downtime. Failed permission restores retry automatically. Restart with command registration enabled, or run `npm run deploy-commands`, after deploying.
