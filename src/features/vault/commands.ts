@@ -1,3 +1,4 @@
+import { vaultForumPost } from "./forum";
 import {
   ChannelType,
   ChatInputCommandInteraction,
@@ -68,13 +69,13 @@ export const setVaultCommand: Command = {
 export const vaultCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("vault")
-    .setDescription("Move a channel to the vault and restrict visibility to administrators.")
+    .setDescription("Vault a channel or save a forum post transcript in the admin-only vault.")
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addChannelOption(option => option
       .setName("channel")
       .setDescription("Channel to vault (defaults to this channel)")
-      .addChannelTypes(...channelTypes)),
+      .addChannelTypes(...channelTypes, ChannelType.PublicThread)),
   async execute(interaction) {
     if (!await requireAdmin(interaction)) return;
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -92,14 +93,24 @@ export const vaultCommand: Command = {
       }
       const channelId = interaction.options.getChannel("channel")?.id ?? interaction.channelId;
       const channel = await guild.channels.fetch(channelId);
-      if (!channel || channel.isThread() || channel.type === ChannelType.GuildCategory ||
-          !channelTypes.some(type => type === channel.type)) {
-        await interaction.editReply("Vault a server channel, not a thread or category. For a forum post, vault its parent forum channel.");
+      if (!channel || channel.type === ChannelType.GuildCategory ||
+          (!channel.isThread() && !channelTypes.some(type => type === channel.type))) {
+        await interaction.editReply("Choose a server channel or a post inside a forum, not a category.");
         return;
       }
       const bot = await guild.members.fetchMe();
       if (!bot.permissions.has(PermissionFlagsBits.Administrator)) {
         await interaction.editReply("I need the Administrator permission to vault channels without retaining a non-admin access exception.");
+        return;
+      }
+      if (channel.isThread()) {
+        const parent = channel.parentId ? await guild.channels.fetch(channel.parentId) : null;
+        if (parent?.type !== ChannelType.GuildForum) {
+          await interaction.editReply("Only threads inside a forum channel can be saved as vault transcripts.");
+          return;
+        }
+        const transcriptUrl = await vaultForumPost(channel, category.id);
+        await interaction.editReply(`[Transcript saved](${transcriptUrl}) in the admin-only vaulted-threads channel. The original is locked and archived but remains visible in its source forum.`);
         return;
       }
       // One PATCH replaces every role/member override alongside the move and rename.

@@ -3,6 +3,7 @@ import type Database from "better-sqlite3";
 /** Existing schema and upgrades, in their original order. */
 export function migrateDatabase(db: Database.Database): void {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS vault_thread_transcripts (source_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS guild_settings (
       guild_id TEXT PRIMARY KEY,
       mod_log_channel_id TEXT,
