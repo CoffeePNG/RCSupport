@@ -109,3 +109,23 @@ Use the existing API address if it differs. A server known to be running but sho
 its address, game port, status setting and network reachability checked from the **bridge container**.
 Being on the same physical machine does not make another container reachable at `127.0.0.1`.
 Local automated tests cover the implementation; real hosting connectivity still needs this test.
+
+### Detailed server information
+
+`/servers info:prod` selects the configured server ID `prod` and sends an ephemeral **Server
+Information** embed: hostname, status, Minecraft version, and whitelist state. Omit `info` for
+the compact list. Both setup and refresh remain Administrator-only, enforced at registration
+and again at execution; `/servers` is available to ordinary members.
+
+The bridge must include the `/api/v1/server-info` endpoint. Add optional `hostname` to a server
+entry to choose the public address shown (for example, `hostname: republicraft.net`). This is
+separate from `host`, the internal address used for probing. Missing display hostnames show
+“Not configured”; internal IPs are never substituted. The version comes from Minecraft's ping
+response, or shows “Unknown” if unavailable.
+
+Whitelist is read live on the bridge server's main thread **only when the requested ID matches
+its top-level `server-id`**. For example, if the bridge runs on Production and its status entry
+is `id: prod`, configure `server-id: prod`. Other backends and the proxy show `UNKNOWN` because
+Minecraft status pings do not expose their whitelist. This field refers to Minecraft's built-in
+whitelist, not an external maintenance/permissions plugin. Existing configuration is not rewritten.
+Update/restart the bridge and bot and refresh slash-command registration before using `info`.

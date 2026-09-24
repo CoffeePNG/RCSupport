@@ -75,7 +75,7 @@ test('Discord permission failures retain saved panel and never cause duplicate p
 });
 test('/servers is ephemeral, independent of a saved panel, and has no admin restriction', async () => {
   let deferred, response;
-  const interaction={guildId:'guild',deferReply:async x=>{deferred=x;},editReply:async x=>{response=x;}};
+  const interaction={guildId:'guild',options:{getString:()=>null},deferReply:async x=>{deferred=x;},editReply:async x=>{response=x;}};
   await serversCommand.execute(interaction,{api:{serverStatus:async()=>snapshot()}});
   assert.equal(deferred.flags,MessageFlags.Ephemeral);
   assert.match(response.embeds[0].toJSON().description,/Online ✅/);
@@ -121,4 +121,32 @@ test('proxy appears first separated from backends in configured order without mu
   assert.equal(JSON.stringify(data),before);
   assert.equal(statusEmbed({...data,servers:[{id:'proxy',name:'Proxy',online:false}]}).toJSON().description,
     '**[Proxy]** - Offline ❌');
+});
+test('setup and refresh require Administrator even when Discord command visibility is overridden', async () => {
+  const { PermissionsBitField, PermissionFlagsBits } = require('discord.js');
+  assert.equal(serverStatusCommand.data.toJSON().default_member_permissions, String(PermissionFlagsBits.Administrator));
+  for (const sub of ['setup','refresh']) {
+    for (const permissions of [new PermissionsBitField(),new PermissionsBitField(PermissionFlagsBits.ManageGuild),null]) {
+      let response;
+      await serverStatusCommand.execute({guildId:'guild',memberPermissions:permissions,
+        options:{getSubcommand:()=>sub},reply:async value=>{response=value;},
+        deferReply:async()=>assert.fail('non-admin must not start the action')});
+      assert.match(response.content,/Only server administrators/);
+      assert.equal(response.flags,MessageFlags.Ephemeral);
+    }
+  }
+});
+test('/servers info selects one configured server and remains ephemeral', async () => {
+  let deferred, response, requested;
+  const info={checked_at:Math.floor(Date.now()/1000),id:'prod',name:'Production Server',hostname:'republicraft.net',online:true,version:'1.21.8',whitelist:false};
+  const interaction={guildId:'guild',options:{getString:()=> 'prod'},deferReply:async value=>{deferred=value;},editReply:async value=>{response=value;}};
+  await serversCommand.execute(interaction,{api:{serverInfo:async id=>{requested=id;return info;},serverStatus:async()=>assert.fail('info should select one server')}});
+  assert.equal(requested,'prod'); assert.equal(deferred.flags,MessageFlags.Ephemeral);
+  const embed=response.embeds[0].toJSON();
+  assert.equal(embed.title,'Server Information');
+  for(const text of ['Hostname: `republicraft.net`','Status: `ONLINE` ✅','Version: `1.21.8`','Whitelist: `INACTIVE`']) assert.ok(embed.description.includes(text));
+  const {informationEmbed,validateInformation}=require('../dist/features/serverStatus/info');
+  assert.match(informationEmbed({...info,whitelist:null,version:null,hostname:null}).toJSON().description,/Whitelist: `UNKNOWN`/);
+  assert.throws(()=>validateInformation({...info,id:'other'},'prod'),/Invalid/);
+  assert.throws(()=>validateInformation({...info,whitelist:'false'},'prod'),/Invalid/);
 });
