@@ -113,3 +113,11 @@ Local automated tests cover the implementation; real hosting connectivity still 
 Both the persistent panel and private `/servers` reply display `republicraft.net` in the footer.
 `/servers` has no `info` argument. Setup and refresh require Discord's Administrator permission,
 enforced both in slash-command registration and at execution (Manage Server alone is not enough).
+
+## Faster Pterodactyl restarts
+
+Use the [RCSupport runner](deploy/ptero-runner.sh) and follow the
+[panel setup instructions](deploy/PTERODACTYL.md). It skips `npm ci` when dependency inputs are
+unchanged and skips compilation when source and generated output are unchanged. It preserves the
+existing update/token/start settings. Selecting the new runner in the panel is a separate step;
+a Git push does not replace an external `.ptero/runner.sh`.
