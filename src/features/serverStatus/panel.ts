@@ -30,9 +30,14 @@ export function statusEmbed(snapshot: ServerSnapshot | null): EmbedBuilder {
   embed.setColor(snapshot.servers.length && snapshot.servers.every(s => s.online) ? 0x57f287 : 0x99aab5)
     .setFooter({ text: "Last checked" }).setTimestamp(snapshot.checked_at * 1000);
   if (!snapshot.servers.length) return embed.setDescription("No servers configured. Add servers to the bridge's server-status.servers configuration.");
-  const fields = snapshot.servers.map(s => ({ name: escapeMarkdown(s.name).replace(/[\r\n]/g, " "),
-    value: s.online ? "ONLINE ✅" : "OFFLINE ❌" }));
-  const description = fields.map(f => `**${f.name}** — ${f.value}`).join("\n");
+  const proxy = snapshot.servers.filter(s => s.id.toLowerCase() === "proxy");
+  const backends = snapshot.servers.filter(s => s.id.toLowerCase() !== "proxy");
+  const groups = [proxy, backends].filter(group => group.length).map(group => group.map(s => ({
+    name: `[${escapeMarkdown(s.name).replace(/[\r\n]/g, " ")}]`,
+    value: s.online ? "Online ✅" : "Offline ❌",
+  })));
+  const fields = groups.flat();
+  const description = groups.map(group => group.map(f => `**${f.name}** - ${f.value}`).join("\n")).join("\n\n");
   return description.length <= 4096 ? embed.setDescription(description) : embed.addFields(fields);
 }
 

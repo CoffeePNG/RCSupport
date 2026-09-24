@@ -23,9 +23,9 @@ function fixture() {
 }
 test('renders exact online/offline wording and rejects malformed or stale status', () => {
   const embed = statusEmbed(validateSnapshot(snapshot())).toJSON();
-  assert.match(embed.description, /Survival\*\* — ONLINE ✅/);
-  assert.match(embed.description, /Build\*\* — OFFLINE ❌/);
-  assert.doesNotMatch(statusEmbed(null).toJSON().description, /OFFLINE/);
+  assert.match(embed.description, /\[Survival\]\*\* - Online ✅/);
+  assert.match(embed.description, /\[Build\]\*\* - Offline ❌/);
+  assert.doesNotMatch(statusEmbed(null).toJSON().description, /Offline/);
   assert.throws(() => validateSnapshot({...snapshot(),checked_at:1}), /stale/);
   assert.throws(() => validateSnapshot({...snapshot(),servers:[{id:'x',name:'x'}]}), /Invalid/);
   assert.throws(() => validateSnapshot({...snapshot(),servers:Array(26).fill(snapshot().servers[0])}), /Invalid/);
@@ -60,7 +60,7 @@ test('bridge outages replace stale green statuses with an unavailable notice', a
   try {
     await f.panel.setup('guild','channel'); f.failApi(); await f.panel.refresh('guild');
     const description=f.calls.edits.at(-1).embeds[0].toJSON().description;
-    assert.match(description,/unavailable/); assert.doesNotMatch(description,/ONLINE|OFFLINE/);
+    assert.match(description,/unavailable/); assert.doesNotMatch(description,/Online|Offline/);
   } finally { f.db.close(); }
 });
 test('Discord permission failures retain saved panel and never cause duplicate posts', async () => {
@@ -78,7 +78,7 @@ test('/servers is ephemeral, independent of a saved panel, and has no admin rest
   const interaction={guildId:'guild',deferReply:async x=>{deferred=x;},editReply:async x=>{response=x;}};
   await serversCommand.execute(interaction,{api:{serverStatus:async()=>snapshot()}});
   assert.equal(deferred.flags,MessageFlags.Ephemeral);
-  assert.match(response.embeds[0].toJSON().description,/ONLINE ✅/);
+  assert.match(response.embeds[0].toJSON().description,/Online ✅/);
   assert.equal(serversCommand.data.toJSON().default_member_permissions,undefined);
   assert.deepEqual(serverStatusCommand.data.toJSON().options.map(x=>x.name),['setup','refresh']);
   await serversCommand.execute(interaction,{api:{serverStatus:async()=>{throw Error('unreachable');}}});
@@ -111,4 +111,14 @@ test('panel deleted during a probe is forgotten without recreating it', async ()
     assert.equal(f.calls.sent.length,1);
     assert.equal(f.db.prepare('SELECT count(*) AS n FROM server_status_panels').get().n,0);
   } finally {f.db.close();}
+});
+test('proxy appears first separated from backends in configured order without mutating the response', () => {
+  const data=snapshot();
+  data.servers.splice(1,0,{id:'proxy',name:'Proxy',online:true});
+  const before=JSON.stringify(data);
+  assert.equal(statusEmbed(data).toJSON().description,
+    '**[Proxy]** - Online ✅\n\n**[Survival]** - Online ✅\n**[Build]** - Offline ❌');
+  assert.equal(JSON.stringify(data),before);
+  assert.equal(statusEmbed({...data,servers:[{id:'proxy',name:'Proxy',online:false}]}).toJSON().description,
+    '**[Proxy]** - Offline ❌');
 });

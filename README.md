@@ -78,7 +78,11 @@ Addresses/ports remain in the bridge config and are not returned to Discord.
   after a restart. Run setup again to create a replacement. Delete the old panel before moving
   it to a different channel. There is no disable command.
 
-Only `ONLINE ✅` and `OFFLINE ❌` are shown for configured servers, with a last-checked timestamp.
+Rows use `**[Name]** - Online ✅` or `**[Name]** - Offline ❌`, with a last-checked timestamp.
+To show the proxy first, add it to the same bridge server list with `id: proxy`, `name: Proxy`,
+and its actual Minecraft host/game port. It appears above a blank line, followed by the other
+servers in their configured order. This applies to both the panel and private `/servers` replies.
+The proxy must be explicitly configured; its status is not inferred from backend statuses.
 An unreachable/invalid API response produces a check-unavailable notice, not false offline results.
 A successful Minecraft status response means online; refused connections, timeouts or invalid
 Minecraft responses mean offline **from the bridge's network perspective**. This is not a TPS,
