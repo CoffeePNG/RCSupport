@@ -44,3 +44,64 @@ Polling also repairs tracked Discord-only reports whose thread names contain the
 Deleted reports retain saved conversation history for 72 hours, then the bot and bridge remove history records while keeping report details, numbers, mappings, and deletion markers. Closing or archiving a report does not trigger cleanup. The bot detects direct Discord deletion, deletion through its controls, and `/br mark-deleted`; missed deletion events are recovered when Discord returns Unknown Channel during polling. Permission failures do not mark a report deleted.
 
 The bridge also supports `/rcsupport admin delete <report-number> confirm`. These requests are durable and the bot retries thread deletion. The 72-hour bridge timer begins once thread deletion is confirmed (or immediately if no thread was created); an offline bridge starts its grace period when notified. Cleanup survives restarts and runs every five minutes in the bridge, and each bot poll for local metadata. Existing backups are not rewritten. Update both the bot and bridge JAR to enable the complete flow.
+
+## Minecraft server status
+
+The bot reuses the **existing RCSupportBridge HTTPS API, certificate, bearer token and port**.
+Install the bridge version with `GET /api/v1/server-status`, then list only the relevant
+Java Edition servers in the bridge's `plugins/RCSupportBridge/config.yml`:
+
+```yaml
+server-status:
+  servers:
+    - id: survival
+      name: Survival
+      host: 127.0.0.1 # Example only: replace with the address reachable FROM the bridge
+      port: 25565    # Existing Minecraft game port
+    - id: creative
+      name: Creative
+      host: 10.0.0.2 # Example only
+      port: 25566
+```
+
+Apply the list with `/rcsupport admin reload`. Servers not in this list are ignored;
+no proxy discovery, new API listener, UDP query port or proxy plugin is required.
+Up to 25 servers are supported, with unique IDs and display names up to 80 characters.
+Addresses/ports remain in the bridge config and are not returned to Discord.
+
+- `/servers`: anyone can request a compact **ephemeral** status embed; no panel setup required.
+- `/server-status setup channel:#server-status interval:120`: administrators create the persistent
+  embed. The interval is in minutes, defaults to two hours, and accepts 1–1440.
+- `/server-status refresh`: administrators request an immediate panel check (bridge results may
+  be cached for up to ten seconds).
+- **Delete the panel message to stop monitoring.** It is not automatically recreated, including
+  after a restart. Run setup again to create a replacement. Delete the old panel before moving
+  it to a different channel. There is no disable command.
+
+Only `ONLINE ✅` and `OFFLINE ❌` are shown for configured servers, with a last-checked timestamp.
+An unreachable/invalid API response produces a check-unavailable notice, not false offline results.
+A successful Minecraft status response means online; refused connections, timeouts or invalid
+Minecraft responses mean offline **from the bridge's network perspective**. This is not a TPS,
+whitelist, player-count or gameplay-health check. The servers must allow normal Minecraft status
+requests (`enable-status=true`). Results are cached for ten seconds to share concurrent requests.
+
+Panel channel/message IDs and intervals are saved in SQLite. The bot refreshes saved panels on
+startup and then checks for due updates every 30 seconds. The bot needs View Channel, Send Messages,
+Embed Links and Read Message History in the chosen channel. Deploy slash commands or restart with
+`DEPLOY_COMMANDS_ON_START` enabled after updating the bot.
+
+### Connectivity test during installation
+
+Configure the real backend addresses and game ports, reload the bridge, then run `/servers`.
+From the bridge machine/container, the existing authenticated API can also be checked:
+
+```sh
+curl --cacert plugins/RCSupportBridge/rcsupport-cert.pem \
+  -H "Authorization: Bearer $TOKEN" \
+  https://127.0.0.1:28120/api/v1/server-status
+```
+
+Use the existing API address if it differs. A server known to be running but shown offline needs
+its address, game port, status setting and network reachability checked from the **bridge container**.
+Being on the same physical machine does not make another container reachable at `127.0.0.1`.
+Local automated tests cover the implementation; real hosting connectivity still needs this test.

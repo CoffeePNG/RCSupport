@@ -1,4 +1,5 @@
 import { zenCommand } from "../features/moderation/commands/zen";
+import { serverStatusCommand, serversCommand } from "../features/serverStatus/command";
 import { Command } from "./types";
 import { ticketCreateCommand } from "../features/tickets/commands/ticket-create";
 import { staffAssignCommand } from "../features/tickets/commands/staff-assign";
@@ -23,6 +24,8 @@ import { bugreportCommand, brCommand } from "../features/bugReports/commands/bug
 import { setVaultCommand, vaultCommand } from "../features/vault/commands";
 
 export const commands: Command[] = [
+  serverStatusCommand,
+  serversCommand,
   setVaultCommand,
   vaultCommand,
   ticketCreateCommand,

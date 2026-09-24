@@ -5,7 +5,8 @@ import { commands } from "./commands/index";
 import { syncGuildCommands } from "./commands/registration";
 import { handleInteraction } from "./events/interactionCreate";
 import { seedDefaultTicketTypes } from "./features/tickets/defaultTicketTypes";
-import "./db/connect";
+import { db } from "./db/connect";
+import { startServerStatus } from "./features/serverStatus/panel";
 import { loadBridgeConfig } from "./features/bugReports/config";
 import { RCSupportForum } from "./features/bugReports/forum";
 
@@ -36,6 +37,7 @@ async function registerCommands(clientId: string, guildIds: readonly string[]): 
 }
 
 client.once(Events.ClientReady, async (readyClient) => {
+  startServerStatus(readyClient, rcForum.api, db);
   startZen(readyClient, `${config.databasePath}.zen.json`);
   try { await rcForum.start(readyClient); }
   catch (error) {

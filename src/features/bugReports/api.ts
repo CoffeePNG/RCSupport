@@ -1,4 +1,5 @@
 import https from "node:https";
+import type { ServerSnapshot } from "../serverStatus/panel";
 import { BridgeConfig } from "./config";
 import { AlertMode, PluginTicket, TicketStatus, StatusUpdate, OutboundReply } from "./types";
 
@@ -6,6 +7,8 @@ interface Envelope<T> { data: T | null; error: { code: string; message: string }
 
 export class BridgeClient {
   constructor(private readonly config: BridgeConfig) {}
+
+  serverStatus(): Promise<ServerSnapshot> { return this.request("GET", "/api/v1/server-status"); }
 
   private request<T>(method: string, path: string, body?: object): Promise<T> {
     const url = new URL(path, this.config.baseUrl);
