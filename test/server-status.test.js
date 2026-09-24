@@ -59,7 +59,7 @@ test('bridge outages replace stale green statuses with an unavailable notice', a
   const f=fixture();
   try {
     await f.panel.setup('guild','channel'); f.failApi(); await f.panel.refresh('guild');
-    const description=f.calls.edits.at(-1).embeds[0].toJSON().description;
+    const description=f.calls.edits.at(-1).embeds[1].toJSON().description;
     assert.match(description,/unavailable/); assert.doesNotMatch(description,/Online|Offline/);
   } finally { f.db.close(); }
 });
@@ -78,11 +78,11 @@ test('/servers is ephemeral, independent of a saved panel, and has no admin rest
   const interaction={guildId:'guild',deferReply:async x=>{deferred=x;},editReply:async x=>{response=x;}};
   await serversCommand.execute(interaction,{api:{serverStatus:async()=>snapshot()}});
   assert.equal(deferred.flags,MessageFlags.Ephemeral);
-  assert.match(response.embeds[0].toJSON().description,/Online ✅/);
+  assert.match(response.embeds[1].toJSON().description,/Online ✅/);
   assert.equal(serversCommand.data.toJSON().default_member_permissions,undefined);
   assert.deepEqual(serverStatusCommand.data.toJSON().options.map(x=>x.name),['setup','refresh']);
   await serversCommand.execute(interaction,{api:{serverStatus:async()=>{throw Error('unreachable');}}});
-  assert.match(response.embeds[0].toJSON().description,/unavailable/);
+  assert.match(response.embeds[1].toJSON().description,/unavailable/);
 });
 test('simultaneous updates are serialized and invalid intervals are rejected', async () => {
   const f=fixture();
@@ -142,22 +142,24 @@ test('compact embeds show the public address at the bottom with no info argument
   }
   assert.ok(!(serversCommand.data.toJSON().options ?? []).some(option=>option.name==='info'));
 });
-test('second embed contains fixed version and IP with live Production whitelist on/off/unknown',async()=>{
+test('first embed contains fixed version and IP with live Production whitelist on/off/unknown',async()=>{
   const {serverEmbeds}=require('../dist/features/serverStatus/panel');
   for(const [value,label] of [[true,'ON'],[false,'OFF'],[null,'UNKNOWN'],[undefined,'UNKNOWN']]) {
     const data={...snapshot(),whitelist:value};
     const embeds=serverEmbeds(validateSnapshot(data));
     assert.equal(embeds.length,2);
-    const info=embeds[1].toJSON();
+    assert.deepEqual(embeds.map(e=>e.toJSON().title),['Server Information','Server Status']);
+    assert.ok(embeds.every(e=>e.toJSON().color===0xbd63aa));
+    const info=embeds[0].toJSON();
     assert.equal(info.title,'Server Information');
-    assert.equal(info.description,`Version: \`1.26.2\`\nIP: \`republicraft.net\`\nProduction whitelist: \`${label}\``);
+    assert.equal(info.description,`Version: \`1.26.2\`\nIP: \`republicraft.net\`\nWhitelist: \`${label}\``);
     let reply;
     await serversCommand.execute({guildId:'guild',deferReply:async()=>{},editReply:async response=>{reply=response;}},
       {api:{serverStatus:async()=>data}});
     assert.equal(reply.embeds.length,2);
-    assert.equal(reply.embeds[1].toJSON().description,info.description);
+    assert.equal(reply.embeds[0].toJSON().description,info.description);
   }
-  assert.match(serverEmbeds(null)[1].toJSON().description,/UNKNOWN/);
+  assert.match(serverEmbeds(null)[0].toJSON().description,/UNKNOWN/);
   assert.throws(()=>validateSnapshot({...snapshot(),whitelist:'false'}),/Invalid/);
   const maximum={...snapshot(),whitelist:true,servers:Array.from({length:25},(_,i)=>({id:String(i),name:'*'.repeat(80),online:true}))};
   assert.ok(serverEmbeds(maximum).reduce((sum,embed)=>sum+embed.length,0)<=6000);

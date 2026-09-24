@@ -122,7 +122,7 @@ unchanged and skips compilation when source and generated output are unchanged. 
 existing update/token/start settings. Selecting the new runner in the panel is a separate step;
 a Git push does not replace an external `.ptero/runner.sh`.
 
-The same message now includes a second **Server Information** embed: the configured public-facing
+The same message begins with a **Server Information** embed, followed by **Server Status**, both colored `#BD63AA`: the configured public-facing
 version **1.26.2**, address **republicraft.net**, and Production whitelist **ON/OFF**. These version
 and address labels are fixed display values, not inferred from server pings. Whitelist is read live
 from the Minecraft server running RCSupportBridge (Production) through the existing status API.
