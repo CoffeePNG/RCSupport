@@ -27,11 +27,11 @@ export function validateSnapshot(value: unknown): ServerSnapshot {
 export function statusEmbed(snapshot: ServerSnapshot | null): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle("Server Status");
   if (!snapshot) return embed.setColor(0xbd63aa)
-    .setDescription("Status check unavailable. Could not get current results from the support bridge. Server statuses are unknown.")
-    .setFooter({ text: "republicraft.net • Check attempted" }).setTimestamp();
-  embed.setColor(0xbd63aa)
-    .setFooter({ text: "republicraft.net • Last checked" }).setTimestamp(snapshot.checked_at * 1000);
-  if (!snapshot.servers.length) return embed.setDescription("No servers configured. Add servers to the bridge's server-status.servers configuration.");
+    .setDescription(`Status check unavailable. Could not get current results from the support bridge. Server statuses are unknown.\n\nCheck attempted: <t:${Math.floor(Date.now() / 1000)}:R>`)
+    .setFooter({ text: "republicraft.net" });
+  embed.setColor(0xbd63aa).setFooter({ text: "republicraft.net" });
+  const checked = `Last checked: <t:${snapshot.checked_at}:R>`;
+  if (!snapshot.servers.length) return embed.setDescription(`No servers configured. Add servers to the bridge's server-status.servers configuration.\n\n${checked}`);
   const proxy = snapshot.servers.filter(s => s.id.toLowerCase() === "proxy");
   const backends = snapshot.servers.filter(s => s.id.toLowerCase() !== "proxy");
   const groups = [proxy, backends].filter(group => group.length).map(group => group.map(s => ({
@@ -40,7 +40,10 @@ export function statusEmbed(snapshot: ServerSnapshot | null): EmbedBuilder {
   })));
   const fields = groups.flat();
   const description = groups.map(group => group.map(f => `**${f.name}** - ${f.value}`).join("\n")).join("\n\n");
-  return description.length <= 4096 ? embed.setDescription(description) : embed.addFields(fields);
+  if (`${description}\n\n${checked}`.length <= 4096) return embed.setDescription(`${description}\n\n${checked}`);
+  // Keep the relative timestamp below the final row without exceeding Discord's 25-field limit.
+  fields[fields.length - 1].value += `\n\n${checked}`;
+  return embed.addFields(fields);
 }
 
 export function serverEmbeds(snapshot: ServerSnapshot | null): EmbedBuilder[] {

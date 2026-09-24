@@ -117,10 +117,10 @@ test('proxy appears first separated from backends in configured order without mu
   data.servers.splice(1,0,{id:'proxy',name:'Proxy',online:true});
   const before=JSON.stringify(data);
   assert.equal(statusEmbed(data).toJSON().description,
-    '**[Proxy]** - Online ✅\n\n**[Survival]** - Online ✅\n**[Build]** - Offline ❌');
+    '**[Proxy]** - Online ✅\n\n**[Survival]** - Online ✅\n**[Build]** - Offline ❌' + `\n\nLast checked: <t:${data.checked_at}:R>`);
   assert.equal(JSON.stringify(data),before);
   assert.equal(statusEmbed({...data,servers:[{id:'proxy',name:'Proxy',online:false}]}).toJSON().description,
-    '**[Proxy]** - Offline ❌');
+    '**[Proxy]** - Offline ❌' + `\n\nLast checked: <t:${data.checked_at}:R>`);
 });
 test('setup and refresh require Administrator even when Discord command visibility is overridden', async () => {
   const { PermissionsBitField, PermissionFlagsBits } = require('discord.js');
@@ -138,7 +138,7 @@ test('setup and refresh require Administrator even when Discord command visibili
 });
 test('compact embeds show the public address at the bottom with no info argument', () => {
   for(const data of [snapshot(),null,{...snapshot(),servers:[]}]) {
-    assert.match(statusEmbed(data).toJSON().footer.text,/^republicraft\.net • /);
+    assert.match(statusEmbed(data).toJSON().footer.text,/^republicraft\.net$/);
   }
   assert.ok(!(serversCommand.data.toJSON().options ?? []).some(option=>option.name==='info'));
 });
@@ -170,4 +170,13 @@ test('first embed contains fixed version and IP with live Production whitelist o
     await f.panel.refresh('guild');
     assert.equal(f.calls.edits[0].embeds.length,2);
   } finally {f.db.close();}
+});
+test('relative check time sits on its own line after a blank line, including fallback layouts',()=>{
+  for(const data of [snapshot(),{...snapshot(),servers:[]},{...snapshot(),servers:Array.from({length:25},(_,i)=>({id:String(i),name:'*'.repeat(80),online:false}))}]) {
+    const embed=statusEmbed(data).toJSON();
+    const bottom=embed.description ?? embed.fields.at(-1).value;
+    assert.ok(bottom.endsWith(`\n\nLast checked: <t:${data.checked_at}:R>`));
+    assert.equal(embed.timestamp,undefined);
+  }
+  assert.match(statusEmbed(null).toJSON().description,/\n\nCheck attempted: <t:\d+:R>$/);
 });
