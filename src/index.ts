@@ -48,7 +48,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
 
   console.log(
-    `Logged in as ${readyClient.user.tag} — ${commands.length} commands loaded, serving ${readyClient.guilds.cache.size} guild(s) [deploy-test-2026-08-19a]`
+    `Logged in as ${readyClient.user.tag} — ${commands.length} commands loaded, serving ${readyClient.guilds.cache.size} guild(s) [restart-cache-test]`
   );
 
   if (config.deployCommandsOnStart) {
