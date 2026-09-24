@@ -152,7 +152,7 @@ test('first embed contains fixed version and IP with live Production whitelist o
     assert.ok(embeds.every(e=>e.toJSON().color===0xbd63aa));
     const info=embeds[0].toJSON();
     assert.equal(info.title,'Server Information');
-    assert.equal(info.description,`Version: \`1.26.2\`\nIP: \`republicraft.net\`\nWhitelist: \`${label}\``);
+    assert.equal(info.description,`Version: \`26.2\`\nIP: \`republicraft.net\`\nWhitelist: \`${label}\``);
     let reply;
     await serversCommand.execute({guildId:'guild',deferReply:async()=>{},editReply:async response=>{reply=response;}},
       {api:{serverStatus:async()=>data}});

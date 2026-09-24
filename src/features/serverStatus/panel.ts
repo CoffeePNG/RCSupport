@@ -49,7 +49,7 @@ export function statusEmbed(snapshot: ServerSnapshot | null): EmbedBuilder {
 export function serverEmbeds(snapshot: ServerSnapshot | null): EmbedBuilder[] {
   const whitelist = snapshot?.whitelist === true ? "ON" : snapshot?.whitelist === false ? "OFF" : "UNKNOWN";
   const information = new EmbedBuilder().setTitle("Server Information").setColor(0xbd63aa)
-    .setDescription(`Version: \`1.26.2\`\nIP: \`republicraft.net\`\nWhitelist: \`${whitelist}\``);
+    .setDescription(`Version: \`26.2\`\nIP: \`republicraft.net\`\nWhitelist: \`${whitelist}\``);
   return [information, statusEmbed(snapshot)];
 }
 
