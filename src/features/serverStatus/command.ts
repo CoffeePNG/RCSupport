@@ -1,7 +1,6 @@
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import type { Command } from "../../commands/types";
 import { getServerStatusPanel, statusEmbed, validateSnapshot } from "./panel";
-import { informationEmbed, validateInformation } from "./info";
 
 export const serverStatusCommand: Command = {
   data: new SlashCommandBuilder().setName("server-status").setDescription("Manage the Minecraft server status panel.")
@@ -35,30 +34,13 @@ export const serverStatusCommand: Command = {
 };
 
 export const serversCommand: Command = {
-  data: new SlashCommandBuilder().setName("servers").setDescription("Privately check the Minecraft servers.").setDMPermission(false)
-    .addStringOption(option => option.setName("info").setDescription("Server ID for detailed information, e.g. prod, dev2 or proxy").setMaxLength(64)),
+  data: new SlashCommandBuilder().setName("servers").setDescription("Privately check the Minecraft servers.").setDMPermission(false),
   async execute(interaction, forum) {
     if (!interaction.guildId) {
       await interaction.reply({ content: "Use this command in a server.", flags: MessageFlags.Ephemeral });
       return;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const server = interaction.options.getString("info")?.trim();
-    if (server) {
-      if (!/^[A-Za-z0-9_-]{1,64}$/.test(server)) {
-        await interaction.editReply("Enter a configured server ID, such as prod, dev2 or proxy.");
-        return;
-      }
-      try {
-        if (!forum) throw new Error("The support bridge is not ready.");
-        const info = validateInformation(await forum.api.serverInfo(server), server);
-        await interaction.editReply({ embeds: [informationEmbed(info)], allowedMentions: { parse: [] } });
-      } catch (error) {
-        console.error("Private server information check failed:", error);
-        await interaction.editReply("Could not read that server's information. Check its ID in server-status.servers and that the bridge has the server-info update installed.");
-      }
-      return;
-    }
     let snapshot = null;
     try {
       if (!forum) throw new Error("The support bridge is not ready.");

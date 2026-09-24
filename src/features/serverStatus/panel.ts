@@ -26,9 +26,9 @@ export function statusEmbed(snapshot: ServerSnapshot | null): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle("Server Status");
   if (!snapshot) return embed.setColor(0xf0ad4e)
     .setDescription("Status check unavailable. Could not get current results from the support bridge. Server statuses are unknown.")
-    .setFooter({ text: "Check attempted" }).setTimestamp();
+    .setFooter({ text: "republicraft.net • Check attempted" }).setTimestamp();
   embed.setColor(snapshot.servers.length && snapshot.servers.every(s => s.online) ? 0x57f287 : 0x99aab5)
-    .setFooter({ text: "Last checked" }).setTimestamp(snapshot.checked_at * 1000);
+    .setFooter({ text: "republicraft.net • Last checked" }).setTimestamp(snapshot.checked_at * 1000);
   if (!snapshot.servers.length) return embed.setDescription("No servers configured. Add servers to the bridge's server-status.servers configuration.");
   const proxy = snapshot.servers.filter(s => s.id.toLowerCase() === "proxy");
   const backends = snapshot.servers.filter(s => s.id.toLowerCase() !== "proxy");
