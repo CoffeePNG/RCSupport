@@ -1,6 +1,6 @@
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import type { Command } from "../../commands/types";
-import { getServerStatusPanel, statusEmbed, validateSnapshot } from "./panel";
+import { getServerStatusPanel, serverEmbeds, validateSnapshot } from "./panel";
 
 export const serverStatusCommand: Command = {
   data: new SlashCommandBuilder().setName("server-status").setDescription("Manage the Minecraft server status panel.")
@@ -46,6 +46,6 @@ export const serversCommand: Command = {
       if (!forum) throw new Error("The support bridge is not ready.");
       snapshot = validateSnapshot(await forum.api.serverStatus());
     } catch (error) { console.error("Private server status check failed:", error); }
-    await interaction.editReply({ embeds: [statusEmbed(snapshot)], allowedMentions: { parse: [] } });
+    await interaction.editReply({ embeds: serverEmbeds(snapshot), allowedMentions: { parse: [] } });
   },
 };

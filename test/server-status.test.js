@@ -142,3 +142,30 @@ test('compact embeds show the public address at the bottom with no info argument
   }
   assert.ok(!(serversCommand.data.toJSON().options ?? []).some(option=>option.name==='info'));
 });
+test('second embed contains fixed version and IP with live Production whitelist on/off/unknown',async()=>{
+  const {serverEmbeds}=require('../dist/features/serverStatus/panel');
+  for(const [value,label] of [[true,'ON'],[false,'OFF'],[null,'UNKNOWN'],[undefined,'UNKNOWN']]) {
+    const data={...snapshot(),whitelist:value};
+    const embeds=serverEmbeds(validateSnapshot(data));
+    assert.equal(embeds.length,2);
+    const info=embeds[1].toJSON();
+    assert.equal(info.title,'Server Information');
+    assert.equal(info.description,`Version: \`1.26.2\`\nIP: \`republicraft.net\`\nProduction whitelist: \`${label}\``);
+    let reply;
+    await serversCommand.execute({guildId:'guild',deferReply:async()=>{},editReply:async response=>{reply=response;}},
+      {api:{serverStatus:async()=>data}});
+    assert.equal(reply.embeds.length,2);
+    assert.equal(reply.embeds[1].toJSON().description,info.description);
+  }
+  assert.match(serverEmbeds(null)[1].toJSON().description,/UNKNOWN/);
+  assert.throws(()=>validateSnapshot({...snapshot(),whitelist:'false'}),/Invalid/);
+  const maximum={...snapshot(),whitelist:true,servers:Array.from({length:25},(_,i)=>({id:String(i),name:'*'.repeat(80),online:true}))};
+  assert.ok(serverEmbeds(maximum).reduce((sum,embed)=>sum+embed.length,0)<=6000);
+  const f=fixture();
+  try {
+    await f.panel.setup('guild','channel');
+    assert.equal(f.calls.sent[0].embeds.length,2);
+    await f.panel.refresh('guild');
+    assert.equal(f.calls.edits[0].embeds.length,2);
+  } finally {f.db.close();}
+});

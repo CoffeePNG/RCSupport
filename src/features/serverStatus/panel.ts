@@ -4,6 +4,7 @@ import type Database from "better-sqlite3";
 export interface ServerSnapshot {
   checked_at: number;
   servers: { id: string; name: string; online: boolean }[];
+  whitelist?: boolean | null;
 }
 export interface StatusApi { serverStatus(): Promise<ServerSnapshot> }
 interface PanelRow { guild_id: string; channel_id: string; message_id: string; interval_minutes: number; updated_at: number }
@@ -11,6 +12,7 @@ interface PanelRow { guild_id: string; channel_id: string; message_id: string; i
 export function validateSnapshot(value: unknown): ServerSnapshot {
   const data = value as ServerSnapshot | null;
   if (!data || !Number.isSafeInteger(data.checked_at) || data.checked_at <= 0
+    || (data.whitelist != null && typeof data.whitelist !== "boolean")
     || !Array.isArray(data.servers) || data.servers.length > 25
     || data.servers.some(s => !s || typeof s.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(s.id)
       || typeof s.name !== "string" || !s.name.trim() || s.name.length > 80 || typeof s.online !== "boolean")
@@ -39,6 +41,13 @@ export function statusEmbed(snapshot: ServerSnapshot | null): EmbedBuilder {
   const fields = groups.flat();
   const description = groups.map(group => group.map(f => `**${f.name}** - ${f.value}`).join("\n")).join("\n\n");
   return description.length <= 4096 ? embed.setDescription(description) : embed.addFields(fields);
+}
+
+export function serverEmbeds(snapshot: ServerSnapshot | null): EmbedBuilder[] {
+  const whitelist = snapshot?.whitelist === true ? "ON" : snapshot?.whitelist === false ? "OFF" : "UNKNOWN";
+  const information = new EmbedBuilder().setTitle("Server Information").setColor(0x5865f2)
+    .setDescription(`Version: \`1.26.2\`\nIP: \`republicraft.net\`\nProduction whitelist: \`${whitelist}\``);
+  return [statusEmbed(snapshot), information];
 }
 
 export class ServerStatusPanel {
@@ -86,7 +95,7 @@ export class ServerStatusPanel {
       let snapshot: ServerSnapshot | null = null;
       try { snapshot = validateSnapshot(await this.api.serverStatus()); }
       catch (error) { console.error("Server status check failed:", error); }
-      const payload = { embeds: [statusEmbed(snapshot)], allowedMentions: { parse: [] as never[] } };
+      const payload = { embeds: serverEmbeds(snapshot), allowedMentions: { parse: [] as never[] } };
       try {
         if (message) message = await message.edit(payload); else message = await channel.send(payload);
       } catch (error) {
