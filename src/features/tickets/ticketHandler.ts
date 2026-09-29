@@ -15,6 +15,7 @@ import {
   claimTicket,
   closeTicket,
   createTicket,
+  discardUncreatedTicket,
   getTicketById,
   setChannelId,
   setMessageId,
@@ -27,7 +28,7 @@ import {
   buildTicketEmbed,
   buildTranscriptLogEmbed,
 } from "./ticketEmbeds";
-import { buildTicketDetailsModal } from "./ticketModal";
+import { APPLICATION_ROLE_SELECT_PREFIX, buildTicketDetailsModal, openTicketForm, ticketQuestionId } from "./ticketModal";
 import { canManageTicket } from "../../utils/permissions";
 import { generateTranscript } from "../../utils/transcript";
 import {
@@ -66,7 +67,7 @@ export async function handleTicketCreateModal(interaction: ModalSubmitInteractio
   const guild = interaction.guild;
   if (!guildId || !guild) return;
 
-  const typeKey = interaction.customId.slice(TICKET_CREATE_MODAL_PREFIX.length + 1);
+  const [typeKey, roleId] = interaction.customId.slice(TICKET_CREATE_MODAL_PREFIX.length + 1).split(":");
   const ticketType = getTicketType(guildId, typeKey);
   if (!ticketType) {
     await interaction.reply({
@@ -76,12 +77,49 @@ export async function handleTicketCreateModal(interaction: ModalSubmitInteractio
     return;
   }
 
-  const details = interaction.fields.getTextInputValue("details");
+  const role = ticketType.applicationRoles.find(role => role.id === roleId);
+  if ((roleId && !role) || (!roleId && ticketType.applicationRoles.length)) {
+    await interaction.reply({ content: "Application roles have changed. Please open a new application and choose your role.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const questions = role?.questions ?? ticketType.questions;
+  const answers: { name: string; value: string }[] = [];
+  let details = "";
+  try {
+    if (questions.length) {
+      questions.forEach((question, index) => {
+        const value = interaction.fields.getTextInputValue(ticketQuestionId(questions, index)).trim();
+        if (!value || value.length > 1000) throw new Error("Invalid answer");
+        answers.push({ name: question, value });
+      });
+    } else {
+      details = interaction.fields.getTextInputValue("details").trim();
+      if (!details || details.length > 1000) throw new Error("Invalid answer");
+    }
+  } catch {
+    await interaction.reply({ content: "Please answer every question. If the questions changed while your form was open, open a new application and try again.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (ticketType.categoryId) {
+    const category = await guild.channels.fetch(ticketType.categoryId).catch(() => null);
+    const me = await guild.members.fetchMe();
+    if (!category || category.type !== ChannelType.GuildCategory ||
+        !category.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels])) {
+      await interaction.editReply("The configured ticket category is unavailable. Please ask staff to update /ticket-config category.");
+      return;
+    }
+  }
   const leads = getLeads(ticketType.id);
 
   // Reserve the ticket row first so its ID is known before the channel is
   // named (channel names use the ticket ID as their suffix for easy lookup).
-  const ticket = createTicket(guildId, typeKey, interaction.user.id, "");
+  const submissionText = [
+    role ? `Application role: ${role.name}` : null,
+    ...answers.map(answer => `${answer.name}\n${answer.value}`),
+    details || null,
+  ].filter(Boolean).join("\n\n");
+  const ticket = createTicket(guildId, typeKey, interaction.user.id, "", submissionText);
 
   const overwrites: OverwriteResolvable[] = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -113,11 +151,20 @@ export async function handleTicketCreateModal(interaction: ModalSubmitInteractio
     })),
   ];
 
-  const channel = await guild.channels.create({
-    name: buildChannelName(ticketType.channelPrefix, interaction.user.username, ticket.id),
-    type: ChannelType.GuildText,
-    permissionOverwrites: overwrites,
-  });
+  let channel: TextChannel;
+  try {
+    channel = await guild.channels.create({
+      name: buildChannelName(ticketType.channelPrefix, interaction.user.username, ticket.id),
+      type: ChannelType.GuildText,
+      parent: ticketType.categoryId ?? undefined,
+      permissionOverwrites: overwrites,
+    });
+  } catch (error) {
+    discardUncreatedTicket(ticket.id);
+    console.error("Could not create ticket channel:", error);
+    await interaction.editReply("Could not create your ticket. Ask staff to check the category capacity and my channel permissions, then try again.");
+    return;
+  }
   setChannelId(ticket.id, channel.id);
 
   const openMessage = resolveTemplate(ticketType.openMessage, {
@@ -127,11 +174,18 @@ export async function handleTicketCreateModal(interaction: ModalSubmitInteractio
   });
   const pingLine = leads.length > 0 ? leads.map((id) => `<@${id}>`).join(" ") : null;
 
-  const message = await channel.send({
-    content: [pingLine, openMessage].filter(Boolean).join("\n"),
-    embeds: [buildTicketEmbed(ticket, ticketType, details, interaction.user.tag)],
-    components: [buildTicketButtons(ticket.id, false, false)],
-  });
+  let message;
+  try {
+    message = await channel.send({
+      content: [pingLine, openMessage].filter(Boolean).join("\n"),
+      embeds: [buildTicketEmbed(ticket, ticketType, answers.length ? answers : details, interaction.user.tag, role?.name)],
+      components: [buildTicketButtons(ticket.id, false, false)],
+    });
+  } catch (error) {
+    console.error("Could not post ticket questionnaire:", error);
+    await interaction.editReply(`Your ticket channel was created at <#${channel.id}>, but I could not post your answers. Please contact staff there and resend your answers.`);
+    return;
+  }
   setMessageId(ticket.id, message.id);
 
   if (ticketType.reviewChannelId) {
@@ -141,14 +195,11 @@ export async function handleTicketCreateModal(interaction: ModalSubmitInteractio
     if (reviewChannel instanceof TextChannel) {
       await reviewChannel.send(
         `New **${ticketType.displayName}** ticket opened by <@${interaction.user.id}>: <#${channel.id}>`
-      );
+      ).catch(error => console.error("Could not post ticket review notice:", error));
     }
   }
 
-  await interaction.reply({
-    content: `Your ticket has been created: <#${channel.id}>`,
-    flags: MessageFlags.Ephemeral,
-  });
+  await interaction.editReply({ content: `Your ticket has been created: <#${channel.id}>` });
 }
 
 /** Ticket panel's select menu: same details modal as /ticket create, for whichever type was picked. */
@@ -165,7 +216,20 @@ export async function handleTicketPanelSelect(interaction: StringSelectMenuInter
     return;
   }
 
-  await interaction.showModal(buildTicketDetailsModal(ticketType));
+  await openTicketForm(interaction, ticketType);
+}
+
+/** The private role selector opens exactly that role's configured questionnaire. */
+export async function handleApplicationRoleSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.guildId) return;
+  const typeKey = interaction.customId.slice(APPLICATION_ROLE_SELECT_PREFIX.length);
+  const ticketType = getTicketType(interaction.guildId, typeKey);
+  const role = ticketType?.applicationRoles.find(role => role.id === interaction.values[0]);
+  if (!ticketType || !role) {
+    await interaction.reply({ content: "That application role is no longer available. Please open a new application.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.showModal(buildTicketDetailsModal(ticketType, role));
 }
 
 /** Claim button: locks the ticket to one lead (or Manage Server holder) and pings the creator. */
@@ -280,7 +344,10 @@ export async function handleTicketCloseConfirm(interaction: ButtonInteraction) {
   const channel = interaction.channel;
   if (!(channel instanceof TextChannel)) return;
 
-  const transcriptText = await generateTranscript(channel);
+  const conversation = await generateTranscript(channel);
+  const transcriptText = ticket.submissionText
+    ? `Original submission\n\n${ticket.submissionText}\n\nConversation\n\n${conversation}`
+    : conversation;
   const closed = closeTicket(ticketId, interaction.user.id);
   if (!closed) return;
 

@@ -1,3 +1,5 @@
+export interface ApplicationRole { id: string; name: string; questions: string[]; }
+
 export interface TicketTypeConfig {
   id: number;
   guildId: string;
@@ -6,6 +8,9 @@ export interface TicketTypeConfig {
   department: string;
   channelPrefix: string;
   reviewChannelId: string | null;
+  categoryId: string | null;
+  questions: string[];
+  applicationRoles: ApplicationRole[];
   openMessage: string;
   claimMessage: string;
   optionDescription: string | null;
@@ -20,6 +25,7 @@ export interface Ticket {
   creatorId: string;
   channelId: string;
   messageId: string | null;
+  submissionText: string | null;
   status: TicketStatus;
   claimedBy: string | null;
   createdAt: number;

@@ -9,6 +9,7 @@ function rowToTicket(row: any): Ticket {
     creatorId: row.creator_id,
     channelId: row.channel_id,
     messageId: row.message_id,
+    submissionText: row.submission_text ?? null,
     status: row.status,
     claimedBy: row.claimed_by,
     createdAt: row.created_at,
@@ -22,14 +23,15 @@ export function createTicket(
   guildId: string,
   typeKey: string,
   creatorId: string,
-  channelId: string
+  channelId: string,
+  submissionText: string | null = null
 ): Ticket {
   const info = db
     .prepare(
-      `INSERT INTO tickets (guild_id, type_key, creator_id, channel_id, status, created_at)
-       VALUES (?, ?, ?, ?, 'open', ?)`
+      `INSERT INTO tickets (guild_id, type_key, creator_id, channel_id, status, created_at, submission_text)
+       VALUES (?, ?, ?, ?, 'open', ?, ?)`
     )
-    .run(guildId, typeKey, creatorId, channelId, Date.now());
+    .run(guildId, typeKey, creatorId, channelId, Date.now(), submissionText);
   return getTicketById(info.lastInsertRowid as number)!;
 }
 
@@ -81,4 +83,9 @@ export function getCounts(
     counts[row.status as TicketStatus] = row.count;
   }
   return counts;
+}
+
+/** Remove only an allocation whose Discord channel was never created. */
+export function discardUncreatedTicket(id: number): void {
+  db.prepare(`DELETE FROM tickets WHERE id = ? AND channel_id = ''`).run(id);
 }

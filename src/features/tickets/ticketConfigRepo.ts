@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { db } from "../../db/connect";
 import { TicketTypeConfig } from "./ticket";
 
@@ -10,6 +11,9 @@ function rowToConfig(row: any): TicketTypeConfig {
     department: row.department,
     channelPrefix: row.channel_prefix,
     reviewChannelId: row.review_channel_id,
+    categoryId: row.category_id ?? null,
+    questions: row.questions_json ? JSON.parse(row.questions_json) : [],
+    applicationRoles: row.application_roles_json ? JSON.parse(row.application_roles_json) : [],
     openMessage: row.open_message,
     claimMessage: row.claim_message,
     optionDescription: row.option_description,
@@ -36,7 +40,7 @@ export function getTicketTypeById(id: number): TicketTypeConfig | null {
 }
 
 export function ensureTicketType(
-  seed: Omit<TicketTypeConfig, "id" | "reviewChannelId">
+  seed: Omit<TicketTypeConfig, "id" | "reviewChannelId" | "categoryId" | "questions" | "applicationRoles">
 ): TicketTypeConfig {
   const existing = getTicketType(seed.guildId, seed.typeKey);
   if (existing) return existing;
@@ -118,4 +122,46 @@ export function removeLead(ticketConfigId: number, userId: string): boolean {
     )
     .run(ticketConfigId, userId);
   return info.changes > 0;
+}
+
+export function setTicketCategory(guildId: string, typeKey: string, categoryId: string | null): void {
+  db.prepare(`UPDATE ticket_configs SET category_id = ? WHERE guild_id = ? AND type_key = ?`)
+    .run(categoryId, guildId, typeKey);
+}
+
+export function setTicketQuestions(guildId: string, typeKey: string, questions: string[]): void {
+  if (questions.length > 5 || questions.some(q => !q.trim() || q.length > 45)) {
+    throw new Error("Use up to five questions, each between 1 and 45 characters.");
+  }
+  db.prepare(`UPDATE ticket_configs SET questions_json = ? WHERE guild_id = ? AND type_key = ?`)
+    .run(JSON.stringify(questions), guildId, typeKey);
+}
+
+/** A named role is offered only once it has a complete question set. */
+export function setApplicationRole(guildId: string, typeKey: string, name: string, questions: string[]): void {
+  name = name.trim();
+  if (!name || name.length > 45 || !questions.length || questions.length > 5 ||
+      questions.some(q => !q.trim() || q.length > 45)) {
+    throw new Error("Use a role name and one to five questions, each at most 45 characters.");
+  }
+  const config = getTicketType(guildId, typeKey);
+  if (!config) throw new Error("Ticket type no longer exists.");
+  const roles = config.applicationRoles;
+  const id = createHash("sha256").update(name.toLowerCase()).digest("hex").slice(0, 16);
+  const existing = roles.findIndex(role => role.id === id);
+  if (existing < 0 && roles.length >= 25) throw new Error("A ticket type supports up to 25 application roles.");
+  const role = { id, name, questions };
+  if (existing < 0) roles.push(role); else roles[existing] = role;
+  db.prepare(`UPDATE ticket_configs SET application_roles_json = ? WHERE guild_id = ? AND type_key = ?`)
+    .run(JSON.stringify(roles), guildId, typeKey);
+}
+
+export function removeApplicationRole(guildId: string, typeKey: string, name: string): boolean {
+  const config = getTicketType(guildId, typeKey);
+  if (!config) return false;
+  const roles = config.applicationRoles.filter(role => role.name.toLowerCase() !== name.trim().toLowerCase());
+  if (roles.length === config.applicationRoles.length) return false;
+  db.prepare(`UPDATE ticket_configs SET application_roles_json = ? WHERE guild_id = ? AND type_key = ?`)
+    .run(JSON.stringify(roles), guildId, typeKey);
+  return true;
 }

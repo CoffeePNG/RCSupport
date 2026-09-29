@@ -1,7 +1,8 @@
+import { APPLICATION_ROLE_SELECT_PREFIX } from "./ticketModal";
 import { Interaction } from "discord.js";
 import { CONFIG_EDIT_MODAL_PREFIX, PANEL_EDIT_MODAL_ID, handleConfigEditModalSubmit, handlePanelEditModalSubmit } from "./configHandler";
 import { TICKET_CLAIM_PREFIX, TICKET_CLOSE_CANCEL_PREFIX, TICKET_CLOSE_CONFIRM_PREFIX, TICKET_CLOSE_PREFIX, TICKET_CREATE_MODAL_PREFIX, TICKET_PANEL_SELECT_ID } from "./ticketConstants";
-import { handleTicketClaim, handleTicketCloseCancel, handleTicketCloseConfirm, handleTicketCloseRequest, handleTicketCreateModal, handleTicketPanelSelect } from "./ticketHandler";
+import { handleApplicationRoleSelect, handleTicketClaim, handleTicketCloseCancel, handleTicketCloseConfirm, handleTicketCloseRequest, handleTicketCreateModal, handleTicketPanelSelect } from "./ticketHandler";
 
 export async function handleTicketsInteraction(interaction: Interaction): Promise<boolean> {
   if (interaction.isModalSubmit() && interaction.customId.startsWith(TICKET_CREATE_MODAL_PREFIX)) {
@@ -14,6 +15,10 @@ export async function handleTicketsInteraction(interaction: Interaction): Promis
   }
   if (interaction.isModalSubmit() && interaction.customId === PANEL_EDIT_MODAL_ID) {
     await handlePanelEditModalSubmit(interaction);
+    return true;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(APPLICATION_ROLE_SELECT_PREFIX)) {
+    await handleApplicationRoleSelect(interaction);
     return true;
   }
   if (interaction.isStringSelectMenu() && interaction.customId === TICKET_PANEL_SELECT_ID) {

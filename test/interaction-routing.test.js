@@ -17,6 +17,7 @@ const routes = [
   ['modal','ticket_create_modal:bug','handleTicketCreateModal','tickets/ticketHandler'],
   ['modal','ticket_config_edit:1','handleConfigEditModalSubmit','tickets/configHandler'],
   ['modal','ticket_panel_edit','handlePanelEditModalSubmit','tickets/configHandler'],
+  ['select','ticket_application_role:application','handleApplicationRoleSelect','tickets/ticketHandler'],
   ['select','ticket_panel_select','handleTicketPanelSelect','tickets/ticketHandler'],
   ['button','ticket_close_confirm:1','handleTicketCloseConfirm','tickets/ticketHandler'],
   ['button','ticket_close_cancel:1','handleTicketCloseCancel','tickets/ticketHandler'],

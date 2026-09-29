@@ -132,11 +132,15 @@ export function migrateDatabase(db: Database.Database): void {
   }
 
   ensureColumn("tickets", "message_id", "TEXT");
+  ensureColumn("tickets", "submission_text", "TEXT");
   ensureColumn("guild_settings", "panel_channel_id", "TEXT");
   ensureColumn("guild_settings", "panel_message_id", "TEXT");
   ensureColumn("guild_settings", "panel_title", "TEXT");
   ensureColumn("guild_settings", "panel_description", "TEXT");
   ensureColumn("ticket_configs", "option_description", "TEXT");
+  ensureColumn("ticket_configs", "category_id", "TEXT");
+  ensureColumn("ticket_configs", "questions_json", "TEXT");
+  ensureColumn("ticket_configs", "application_roles_json", "TEXT");
   ensureColumn("guild_settings", "todo_panel_channel_id", "TEXT");
   ensureColumn("guild_settings", "todo_panel_message_id", "TEXT");
   ensureColumn("todos", "title", "TEXT NOT NULL DEFAULT ''");

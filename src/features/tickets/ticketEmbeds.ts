@@ -39,16 +39,19 @@ export function applyTicketStatus(embed: EmbedBuilder, ticket: Ticket): EmbedBui
 export function buildTicketEmbed(
   ticket: Ticket,
   ticketType: TicketTypeConfig,
-  details: string,
-  creatorTag: string
+  details: string | { name: string; value: string }[],
+  creatorTag: string,
+  applicationRole?: string
 ): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(ticketType.displayName)
-    .setDescription(details.slice(0, 4000))
+    .setDescription(typeof details === "string" ? details.slice(0, 4000) : null)
     .addFields({ name: "Opened by", value: `${creatorTag} (<@${ticket.creatorId}>)` })
     .setFooter({ text: `Ticket #${ticket.id} • ${ticketType.department}` })
     .setTimestamp(ticket.createdAt);
 
+  if (applicationRole) embed.addFields({ name: "Application role", value: applicationRole });
+  if (Array.isArray(details)) embed.addFields(details);
   return applyTicketStatus(embed, ticket);
 }
 

@@ -61,7 +61,8 @@ resubmit.
 
 Each row in `ticket_configs` (see `src/db/migrations.ts` for the schema) has:
 `typeKey`, `displayName`, `department`, `channelPrefix`, `reviewChannelId`,
-`openMessage`, `claimMessage`, `optionDescription`. Leads are a separate
+`openMessage`, `claimMessage`, `optionDescription`, `categoryId`, `questions`,
+and `applicationRoles`. Leads are a separate
 `ticket_leads` table (many-to-many by `type_key` + user ID).
 `openMessage`/`claimMessage` support `{department}`, `{leads}`, `{creator}`,
 `{claimant}` template variables, resolved at send time
@@ -88,6 +89,9 @@ staff team.") — falls back to `department` if not set.
   manage leads for a ticket type. Takes effect immediately, no restart.
 - `/staff-status` — embed showing every ticket type, its leads, its review
   channel, and live open/claimed/closed counts.
+- `/ticket-config category type:<autocomplete> category:<category>` — set where new tickets open; `clear-category` removes that destination.
+- `/ticket-config questions type:<autocomplete> [role:<name>]` — edit the default questions or a named application role's questions. See [role-specific setup](#ticket-categories-and-role-specific-application-questions) below.
+- `/ticket-config remove-role type:<autocomplete> role:<name>` — remove an application choice.
 - `/ticket-config review-channel type:<autocomplete> channel:<channel>` —
   (re)point a ticket type's review/archive channel.
 - `/ticket-config open-message type:<autocomplete>` /
@@ -384,3 +388,55 @@ Run `/vault` inside a forum post (or select it with `channel`) to save its histo
 Each entry has the post title, source link, message count, a readable `.txt` transcript and structured `.json` transcript. Messages are paginated and sorted oldest first, with author IDs/names, timestamps, content, embeds, attachment links, sticker metadata, and reply references captured in the JSON. Original attachment files are re-uploaded in linked follow-up messages. Mentions are disabled. This is a snapshot, not a live mirror; original reactions, interactive controls, and authorship are not recreated.
 
 The original post is locked and archived, not deleted or hidden. It remains visible to users who can access its source forum. Saved transcript message IDs persist in SQLite so repeated commands return the existing entry. If copying fails (including Discord upload-size limits), the source's original lock/archive state is restored and any partial entry is marked incomplete; retrying may leave that marked entry alongside the new attempt. Retain the database. Normal channel vaulting is unchanged. Deploy the updated bot and refresh slash commands to enable forum-post selection.
+
+
+## Ticket categories and role-specific application questions
+
+These commands require **Manage Server**. Choose the ticket type from autocomplete
+(`application` is shown as **Staff Application**).
+
+```text
+/ticket-config category type:application category:Applications
+/ticket-config questions type:application role:Moderator
+/ticket-config questions type:application role:Developer
+/ticket-config questions type:application role:Modeler
+```
+
+`questions` opens an editor with five question slots. Fill the slots you need and
+leave the rest blank. Saving a named role creates or updates that role (names are
+case-insensitive). Each role needs at least one question. The applicant chooses
+**Staff Application**, then privately selects a role, then fills out that role's
+form. This works from both the ticket panel and `/ticket create`. The role and all
+answers appear in the ticket starter embed and its normal transcript.
+
+Each type supports up to 25 roles; each role supports 1–5 required paragraph
+answers, each up to 1,000 characters. Question prompts and role names can be up to
+45 characters. There are no prewritten role questions: configure your actual
+questions before offering a role. Changes apply to new forms. A submission from a
+form whose questions changed is rejected with instructions to reopen it, so old
+answers cannot be attached to new question labels.
+
+- Omit `role` from `questions` to edit the type's default questions. They are used
+  when no roles are configured. Clearing all five default slots restores the
+  original “What's this about?” field.
+- `/ticket-config remove-role type:application role:Modeler` removes that choice.
+  Removing the final role returns the type to its default questions.
+- `/ticket-config clear-category type:application` returns new tickets to no category.
+- Categories apply per ticket type, including all its application roles. Existing
+  channels are not moved. Review/archive destinations remain separately configured
+  with `review-channel`.
+
+The bot checks access to the category and retains the ticket's explicit private
+permissions for its creator, configured leads, and bot. It does not inherit public
+category access. A missing or inaccessible category blocks ticket creation rather
+than silently creating a channel elsewhere.
+
+The role chooser happens **before** the form opens. Discord does not expose live
+conditional field updates within an already-open modal. Additional branching or
+more than five questions would need a multi-step flow; this implementation uses one
+role-specific form.
+
+Build and restart the bot and register the updated slash commands (`npm run
+deploy-commands`, or startup registration) to enable these options. SQLite columns
+are added automatically on startup; category and question settings persist across
+restarts. No bridge update is needed for these ticket changes.

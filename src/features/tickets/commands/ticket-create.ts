@@ -6,7 +6,7 @@ import {
 } from "discord.js";
 import { getTicketType } from "../ticketConfigRepo";
 import { respondTicketTypeAutocomplete } from "../ticketTypeAutocomplete";
-import { buildTicketDetailsModal } from "../ticketModal";
+import { openTicketForm } from "../ticketModal";
 import { Command } from "../../../commands/types";
 
 export const ticketCreateCommand: Command = {
@@ -46,7 +46,7 @@ export const ticketCreateCommand: Command = {
       return;
     }
 
-    await interaction.showModal(buildTicketDetailsModal(ticketType));
+    await openTicketForm(interaction, ticketType);
   },
 
   async autocomplete(interaction: AutocompleteInteraction) {
