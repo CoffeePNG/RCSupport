@@ -243,7 +243,10 @@ Run `npm test` for the focused mapping, filtering, source-branching, and alert-c
    in several guilds at once, e.g. a public server and a staff-only server).
 3. Register slash commands. The bot does this itself on every boot, so on a
    host with no shell (Pterodactyl, most panel hosts) there is nothing to run:
-   restart it and the commands match the running code. To register by hand:
+   restart it and the commands match the running code. Registration starts before
+   bug-report synchronization and runs independently of the initial bridge poll.
+   Keep the normal startup command (`npm start` or `node dist/index.js`); no
+   separate deploy-script startup is needed. To register by hand:
    ```
    npm run deploy-commands
    ```

@@ -21,7 +21,7 @@ const commandsByName = new Map(commands.map((command) => [command.data.name, com
 /**
  * Registering on boot keeps slash commands in step with the running code on
  * hosts where there's no shell to run `npm run deploy-commands` from. It's an
- * idempotent full PUT, so restarting costs nothing when nothing changed.
+ * idempotent full PUT that reconciles the registered definitions on each boot.
  */
 async function registerCommands(clientId: string, guildIds: readonly string[]): Promise<void> {
   for (const guildId of guildIds) {
@@ -37,12 +37,6 @@ async function registerCommands(clientId: string, guildIds: readonly string[]): 
 }
 
 client.once(Events.ClientReady, async (readyClient) => {
-  startServerStatus(readyClient, rcForum.api, db);
-  startZen(readyClient, `${config.databasePath}.zen.json`);
-  try { await rcForum.start(readyClient); }
-  catch (error) {
-    console.error("RCSupport Forum needs setup. Run /br setup channel:<forum>:", error);
-  }
   for (const guild of readyClient.guilds.cache.values()) {
     seedDefaultTicketTypes(guild.id);
   }
@@ -52,7 +46,18 @@ client.once(Events.ClientReady, async (readyClient) => {
   );
 
   if (config.deployCommandsOnStart) {
+    console.log("Registering slash commands in the background.");
     void registerCommands(readyClient.user.id, config.guildIds);
+  } else {
+    console.log("Startup command registration disabled by DEPLOY_COMMANDS_ON_START=false.");
+  }
+
+  // Registration must not wait for optional services or the first bridge poll.
+  startServerStatus(readyClient, rcForum.api, db);
+  startZen(readyClient, `${config.databasePath}.zen.json`);
+  try { await rcForum.start(readyClient); }
+  catch (error) {
+    console.error("RCSupport Forum needs setup. Run /br setup channel:<forum>:", error);
   }
 });
 
