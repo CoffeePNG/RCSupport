@@ -51,6 +51,10 @@ export async function openTicketForm(
   interaction: ChatInputCommandInteraction | StringSelectMenuInteraction,
   ticketType: TicketTypeConfig
 ): Promise<void> {
+  if (ticketType.enabled === false) {
+    await interaction.reply({content:"This ticket type is locked and is not accepting new tickets.",flags:MessageFlags.Ephemeral});
+    return;
+  }
   if (!ticketType.applicationRoles.length) {
     await interaction.showModal(buildTicketDetailsModal(ticketType));
     return;

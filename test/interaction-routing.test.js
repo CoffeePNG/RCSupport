@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const {PermissionFlagsBits} = require('discord.js');
 
 // Substitute leaf handlers only: run the real central and feature dispatchers.
 const replacements = {
@@ -22,6 +23,7 @@ const routes = [
   ['button','ticket_close_confirm:1','handleTicketCloseConfirm','tickets/ticketHandler'],
   ['button','ticket_close_cancel:1','handleTicketCloseCancel','tickets/ticketHandler'],
   ['button','ticket_close:1','handleTicketCloseRequest','tickets/ticketHandler'],
+  ['button','ticket_release:1','handleTicketRelease','tickets/ticketHandler'],
   ['button','ticket_claim:1','handleTicketClaim','tickets/ticketHandler'],
   ['modal','todo_add_modal','handleTodoAddModalSubmit','todo/todoHandler'],
   ['select','todo_complete_select','handleTodoCompleteSelect','todo/todoHandler'],
@@ -46,6 +48,7 @@ const {handleInteraction} = require('../dist/events/interactionCreate');
 for(const [id,previous] of saved) { if(previous) require.cache[id]=previous; else delete require.cache[id]; }
 function interaction(type,customId) {
   return {customId,guildId:'allowed',commandName:'test',replied:false,deferred:false,
+    memberPermissions:{bitfield:PermissionFlagsBits.ManageGuild},respond:async choices=>{calls.push(['respond',choices]);},
     isChatInputCommand:()=>type==='command',isAutocomplete:()=>type==='autocomplete',
     isModalSubmit:()=>type==='modal',isButton:()=>type==='button',
     isStringSelectMenu:()=>type==='select',isUserSelectMenu:()=>type==='user',
@@ -76,4 +79,29 @@ test('case buttons route to the report control handler',async()=>{
   let handled=0;
   await handleInteraction(interaction('button','rcsupport:case:claim:0'),new Map(),{handleControl:async()=>handled++});
   assert.equal(handled,1);
+});
+
+test('autocomplete refuses stale guild registrations and unauthorized management commands',async()=>{
+  const command={guildIds:['allowed'],requiredPermissions:PermissionFlagsBits.ManageGuild,
+    execute:async()=>calls.push('command'),autocomplete:async()=>calls.push('autocomplete')};
+  const commands=new Map([['test',command]]);
+  for(const overrides of [{guildId:'elsewhere'},{guildId:null},{memberPermissions:{bitfield:0n}}]) {
+    calls=[];await handleInteraction({...interaction('autocomplete'),...overrides},commands);
+    assert.deepEqual(calls,[['respond',[]]]);
+    calls=[];await handleInteraction({...interaction('command'),...overrides},commands);
+    assert.deepEqual(calls,['reply']);
+  }
+});
+test('ticket configuration modals recheck permissions on submission',async()=>{
+  for(const id of ['ticket_config_edit:open:application','ticket_panel_edit']) {
+    calls=[];await handleInteraction({...interaction('modal',id),memberPermissions:{bitfield:0n}},new Map());
+    assert.deepEqual(calls,['reply']);
+  }
+});
+test('autocomplete failures return an empty result without a message reply',async()=>{
+  const previous=console.error;console.error=()=>{};
+  try {
+    calls=[];await handleInteraction(interaction('autocomplete'),new Map([['test',{autocomplete:async()=>{throw Error('failure');}}]]));
+    assert.deepEqual(calls,[['respond',[]]]);
+  } finally {console.error=previous;}
 });

@@ -1,10 +1,11 @@
+import { isGuildAllowed } from "../security/access";
 import { REST, Routes } from "discord.js";
 import { commands } from "./index";
 
-/** A command with no guildIds goes everywhere; one with them goes only there. */
+/** Registration and runtime enforce the same module and command guild scopes. */
 export function commandBodyFor(guildId: string) {
   return commands
-    .filter((command) => !command.guildIds || command.guildIds.includes(guildId))
+    .filter((command) => isGuildAllowed(command, guildId))
     .map((command) => command.data.toJSON());
 }
 

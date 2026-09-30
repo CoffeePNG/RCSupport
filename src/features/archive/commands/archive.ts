@@ -9,7 +9,7 @@ import {
   PermissionsBitField,
   SlashCommandBuilder,
 } from "discord.js";
-import { config } from "../../../config";
+import { archiveModule } from "../../../modules/catalog";
 import { MAX_DURATION_MS, formatDuration, parseDuration } from "../../../utils/duration";
 import { postArchiveLog } from "../../../utils/logger";
 import { parseMessageReference } from "../../../utils/messageLink";
@@ -41,7 +41,7 @@ function slugify(name: string): string {
 }
 
 export const archiveCommand: Command = {
-  guildIds: config.archiveGuildIds,
+  module: archiveModule,
 
   data: new SlashCommandBuilder()
     .setName("archive")

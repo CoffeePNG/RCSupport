@@ -1,3 +1,4 @@
+import { staffCommand } from "../features/staff/command";
 import { zenCommand } from "../features/moderation/commands/zen";
 import { serverStatusCommand, serversCommand } from "../features/serverStatus/command";
 import { Command } from "./types";
@@ -24,6 +25,7 @@ import { bugreportCommand, brCommand } from "../features/bugReports/commands/bug
 import { setVaultCommand, vaultCommand } from "../features/vault/commands";
 
 export const commands: Command[] = [
+  staffCommand,
   serverStatusCommand,
   serversCommand,
   setVaultCommand,

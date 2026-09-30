@@ -26,6 +26,7 @@ function setup() {
   const f=database(),calls={};
   const handler=load('../dist/features/tickets/ticketHandler',{
     './ticketConfigRepo':f.repo,
+    './cleanup':{retryTicketCleanup:async()=>{}},
     './ticketRepo':{discardUncreatedTicket:()=>{calls.discarded=true;},createTicket:(...args)=>{calls.submission=args[4];calls.reserved=true;return {id:1,creatorId:'user',status:'open',createdAt:1};},setChannelId:()=>{},setMessageId:()=>{}},
     '../../utils/permissions':{},
   });
@@ -143,7 +144,9 @@ test('failed category channel creation finishes response and clears its uncreate
 test('category command validates permissions, stores the destination, and can clear it',async()=>{
  const f=setup();try {
   const {ticketConfigCommand}=load('../dist/features/tickets/commands/ticket-config',{
-   '../ticketConfigRepo':f.repo,'../configHandler':{},'../ticketTypeAutocomplete':{}
+    '../workflowCommands':{...require('../dist/features/tickets/workflowDefinitions')},
+   '../ticketConfigRepo':f.repo,'../configHandler':{},'../ticketTypeAutocomplete':{},
+   '../ticketRepo':{},'../configInspection':{},'../ticketPanel':{}
   });
   const definition=ticketConfigCommand.data.toJSON();
   assert.deepEqual(definition.options.find(o=>o.name==='category').options[1].channel_types,[ChannelType.GuildCategory]);

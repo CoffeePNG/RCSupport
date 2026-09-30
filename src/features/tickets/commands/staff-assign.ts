@@ -1,3 +1,4 @@
+import { ticketModule } from "../../../modules/catalog";
 import {
   AutocompleteInteraction,
   ChatInputCommandInteraction,
@@ -10,6 +11,8 @@ import { respondTicketTypeAutocomplete } from "../ticketTypeAutocomplete";
 import { Command } from "../../../commands/types";
 
 export const staffAssignCommand: Command = {
+  module: ticketModule,
+  requiredPermissions: PermissionFlagsBits.ManageGuild,
   data: new SlashCommandBuilder()
     .setName("staff-assign")
     .setDescription("Add or remove a lead for a ticket type.")

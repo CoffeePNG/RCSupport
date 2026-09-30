@@ -1,3 +1,4 @@
+import { ticketModule } from "../../../modules/catalog";
 import {
   ChannelType,
   ChatInputCommandInteraction,
@@ -12,6 +13,8 @@ import { buildPanelContent } from "../ticketPanel";
 import { Command } from "../../../commands/types";
 
 export const ticketPanelCommand: Command = {
+  module: ticketModule,
+  requiredPermissions: PermissionFlagsBits.ManageGuild,
   data: new SlashCommandBuilder()
     .setName("ticket-panel")
     .setDescription("Post or customize the ticket creation panel.")
@@ -78,11 +81,11 @@ export const ticketPanelCommand: Command = {
         .fetch(settings.panelMessageId)
         .catch(() => null);
       if (existing) {
-        posted = await existing.edit({ embeds: [content.embed], components: [content.row] });
+        posted = await existing.edit({ embeds: [content.embed], components: content.row ? [content.row] : [] });
       }
     }
     if (!posted) {
-      posted = await targetChannel.send({ embeds: [content.embed], components: [content.row] });
+      posted = await targetChannel.send({ embeds: [content.embed], components: content.row ? [content.row] : [] });
     }
 
     setPanelInfo(guildId, channelOption.id, posted.id);

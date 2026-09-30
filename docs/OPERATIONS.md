@@ -36,18 +36,16 @@ These were open questions in the spec, resolved as follows:
 
 | Question | Decision |
 |---|---|
-| Single- or multi-claim? | Single-claim — the Claim button disables once someone claims, until the ticket closes. |
-| Transcript delivery | Archive channel only — posted as a `.txt` file to that ticket type's configured review/archive channel. No DM to the creator. |
-| Application approval automation | Status update only — the bot does not assign a role on approval. A human handles onboarding/role assignment separately. `Manage Roles` is intentionally not requested. |
-| Auto-close/auto-unclaim inactive tickets | Not implemented — tickets stay open/claimed until a lead or the creator explicitly closes them. No background scheduler. |
+| Single- or multi-claim? | Single-claim — Claim becomes Release claim. The claimant (while still a lead) or a Manage Server holder can return it to the queue. |
+| Transcript delivery | Saved in SQLite first, then delivered as a `.txt` file when a review/archive channel is configured. No DM to the creator. |
+| Application approval automation | Ticket approval does not grant roles. Organizational `/staff` management separately supports configured role bindings and needs Manage Roles only when those bindings are enabled. |
+| Auto-close/auto-unclaim inactive tickets | No inactivity-based changes. Claim release and closure are explicit; a background worker only retries deletion of already-closed, archived tickets. |
 | Complete set of ticket types? | Application, Bug Report, Appeal, Help Request seeded by default; config schema is generic, so more can be added later without code changes to the pipeline. |
 | Lead notification on new ticket | Leads are pinged (individually, by user ID — there's no role to ping) inside the new ticket channel itself, and a short notice is posted to that type's review channel. |
 
-One deviation from the suggested file layout: **Claim and Close are buttons
-on the ticket message, not slash commands** (`ticket-claim.ts`/
-`ticket-close.ts` in the spec's suggested tree became button handlers inside
-`src/features/tickets/ticketHandler.ts` instead). This matches the described lifecycle
-("a lead clicks a Claim button") more directly than a typed command would.
+Claim and Close remain buttons on the ticket message. `/ticket claim` and
+`/ticket release` also work inside a ticket channel, including older messages.
+`/ticket queue` provides a paginated working queue scoped to the user's ticket leads.
 
 Text-heavy config (open/claim messages, dropdown blurbs, panel title/
 description) is edited via **modals**, not slash-command string options —
@@ -60,7 +58,7 @@ resubmit.
 ## Ticket type config fields
 
 Each row in `ticket_configs` (see `src/db/migrations.ts` for the schema) has:
-`typeKey`, `displayName`, `department`, `channelPrefix`, `reviewChannelId`,
+`typeKey`, `enabled`, `displayName`, `department`, `channelPrefix`, `reviewChannelId`,
 `openMessage`, `claimMessage`, `optionDescription`, `categoryId`, `questions`,
 and `applicationRoles`. Leads are a separate
 `ticket_leads` table (many-to-many by `type_key` + user ID).
@@ -79,7 +77,7 @@ staff team.") — falls back to `department` if not set.
   members click instead of typing a slash command; see below.
 - **Claim** button on the ticket's message — restricted to that type's
   configured leads (or anyone with `Manage Server`).
-- **Close** button — restricted to a lead, the claimant, `Manage Server`
+- **Close** button — restricted to a currently configured lead, `Manage Server`
   holders, or the ticket's creator. Clicking it asks for confirmation
   (ephemeral **Confirm Close** / **Cancel** buttons) before anything happens,
   so a misclick can't nuke a ticket.
@@ -145,7 +143,7 @@ staff team.") — falls back to `department` if not set.
 
 **Channel transcripts**
 - `/archive duration? from? channel? limit?` — anyone, in the guilds listed in
-  `ARCHIVE_GUILD_IDS` (defaults to `903819888903200798`); pulls
+  `STAFF_GUILD_ID` (legacy fallback: `ARCHIVE_GUILD_IDS`, default `903819888903200798`); pulls
   the channel's messages from the last `duration` (`30m`, `24h`, `7d`, `1w2d`;
   defaults to `24h`, max 90 days) and DMs you an embed summarizing who talked,
   when, and in which channel, plus the full `.txt` transcript attached — the
@@ -197,7 +195,8 @@ via `/mod-config log-channel`, if configured.
 
 ## Ticket archive logs
 
-When a ticket closes, its review/archive channel gets one embed per ticket
+When a review/archive channel is configured, it must receive the transcript before
+the ticket is marked closed. The channel gets one embed per ticket
 (color-coded, titled `<Ticket Type> — Ticket #<id>`, with Opened/Claimed/Closed
 by + duration fields) so consecutive closures are easy to tell apart at a
 glance instead of blending into a wall of plain text. The transcript itself is
@@ -205,6 +204,9 @@ plain text in the embed description (not a code block — Discord doesn't
 resolve `<@id>` mentions to names inside code blocks, so usernames would show
 as raw IDs); if it's too long to fit, it's truncated there and the full
 transcript is still attached as a `.txt` file on the same message.
+All closed tickets also retain their transcript in SQLite. Incomplete captures,
+failed configured exports, and oversized attachments prevent automatic closure.
+See [Ticket workflows](TICKET_WORKFLOWS.md) for limits and restart-safe deletion retries.
 
 ## Ticket channel names
 
@@ -215,10 +217,25 @@ easy to match up.
 
 ## Adding a new ticket type
 
-Not a routine change — add an entry to `src/features/tickets/defaultTicketTypes.ts` (or
-insert directly into the `ticket_configs` table) with the six fields above,
-then run `/ticket-config review-channel` and `/staff-assign` to finish wiring
-it up in Discord. No changes to `ticketHandler.ts` or any command are needed.
+Use `/ticket-config create key:<key> name:<name> department:<department> [prefix:<prefix>]`.
+The new type starts locked. Configure its category, questions, ticket leads and
+review channel, inspect it with `/ticket-config view` and `check`, then enable
+intake with `/ticket-config unlock type:<type>`.
+
+`/ticket-config lock type:<type>` stops new submissions while preserving existing
+tickets and their controls. Both commands require Manage Server. Locked types stay
+available in administrative autocomplete, but are removed from member-facing choices.
+Old panels and forms are checked at submission time too. When all types are locked,
+the published panel shows a locked notice with no selectable controls.
+
+Up to 25 total ticket types are supported per server, including locked types.
+Keys are permanent identifiers, so duplicate creation is rejected without changing
+the existing type. New types do not create departments or staff assignments.
+Create/lock/unlock changes are audited in `ticket_config_audit` and survive restarts.
+Existing types remain enabled on upgrade; default seeding preserves saved locks.
+Panel refresh failures are reported separately from saved settings; use
+`/ticket-panel post` to recover the display. No source or direct database editing is
+needed for routine ticket-type creation.
 
 ## Setup
 
@@ -239,8 +256,23 @@ Run `npm test` for the focused mapping, filtering, source-branching, and alert-c
    npm install
    ```
 2. Copy `.env.example` to `.env` and fill in `DISCORD_TOKEN`,
-   `DISCORD_CLIENT_ID`, `DISCORD_GUILD_IDS` (comma-separated — one bot can run
-   in several guilds at once, e.g. a public server and a staff-only server).
+   `DISCORD_CLIENT_ID`, and both `PUBLIC_GUILD_ID` and `STAFF_GUILD_ID`.
+   Tickets and ticket lead management run only in Public; `/archive` runs only
+   in Staff. Set both to distinct guild IDs. Other features retain their existing
+   availability until individually reviewed.
+
+   For a compatibility upgrade, leave both semantic IDs unset and continue using
+   `DISCORD_GUILD_IDS` (or legacy `DISCORD_GUILD_ID`). This retains existing ticket
+   availability and `ARCHIVE_GUILD_IDS` restrictions. Setting just one semantic
+   ID is a configuration error. When both are set, `STAFF_GUILD_ID` supersedes
+   `ARCHIVE_GUILD_IDS`.
+
+   Keep previous guilds in `DISCORD_GUILD_IDS` during migration. Registration
+   includes those guilds plus Public and Staff, removing obsolete ticket/archive
+   commands from old locations. Runtime checks also reject stale commands,
+   autocomplete, and ticket components outside their configured scope. Existing
+   ticket data and channels remain intact; finish active tickets before switching
+   scope if they are in a guild that will no longer be Public.
 3. Register slash commands. The bot does this itself on every boot, so on a
    host with no shell (Pterodactyl, most panel hosts) there is nothing to run:
    restart it and the commands match the running code. Registration starts before
@@ -250,8 +282,9 @@ Run `npm test` for the focused mapping, filtering, source-branching, and alert-c
    ```
    npm run deploy-commands
    ```
-   Either path registers commands in every guild listed in `DISCORD_GUILD_IDS`.
-   Commands pinned to specific guilds (see `ARCHIVE_GUILD_IDS`) are skipped
+   Either path registers commands in Public, Staff and every additional guild
+   listed in `DISCORD_GUILD_IDS`. Commands restricted by their module or explicit
+   guild list are skipped
    everywhere else, and each guild's set is replaced wholesale, so unpinning a
    command removes it from the guilds it no longer belongs to. Set
    `DEPLOY_COMMANDS_ON_START=false` if you would rather only ever register with
@@ -443,3 +476,22 @@ Build and restart the bot and register the updated slash commands (`npm run
 deploy-commands`, or startup registration) to enable these options. SQLite columns
 are added automatically on startup; category and question settings persist across
 restarts. No bridge update is needed for these ticket changes.
+
+## Ticket workflow improvements
+
+Use `/ticket-config view` and `/ticket-config check` to inspect setup, `/ticket queue`
+to find work, and `/ticket claim` or `/ticket release` inside a ticket channel to
+manage ownership. Closure saves the transcript before marking the ticket closed;
+failed channel deletions retry across restarts. See [Ticket workflows](TICKET_WORKFLOWS.md)
+for permissions, archival limits and recovery behavior.
+
+
+### Ticket transfers, history, and reminders
+
+Use `/ticket reassign` inside a ticket to change its type and/or assigned staff.
+Use `/ticket history`, `/ticket details id`, and `/ticket transcript id` to retrieve
+records within your ticket-lead scope (Manage Server can access all types).
+Reminders stay inside tickets and default off; configure them per type with
+`/ticket-config notifications`, then use `/ticket waiting` for explicit follow-up.
+See [Ticket workflows](TICKET_WORKFLOWS.md#reassignment) for permissions, recovery,
+notification timing, and transcript limitations.

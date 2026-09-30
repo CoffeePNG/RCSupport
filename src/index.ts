@@ -1,3 +1,6 @@
+import { startTicketWorkflows, observeTicketReply } from "./features/tickets/workflowRuntime";
+import { startTicketCleanup } from "./features/tickets/cleanup";
+import { startStaff } from "./features/staff/start";
 import { startZen } from "./services/zen";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { config } from "./config";
@@ -53,6 +56,9 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
 
   // Registration must not wait for optional services or the first bridge poll.
+  startTicketCleanup(readyClient);
+  startTicketWorkflows(readyClient);
+  void startStaff(readyClient);
   startServerStatus(readyClient, rcForum.api, db);
   startZen(readyClient, `${config.databasePath}.zen.json`);
   try { await rcForum.start(readyClient); }
@@ -72,6 +78,10 @@ client.on(Events.GuildCreate, (guild) => {
 
 client.on(Events.InteractionCreate, (interaction) => {
   void handleInteraction(interaction, commandsByName, rcForum);
+});
+
+client.on(Events.MessageCreate, message => {
+  void observeTicketReply(message).catch(error => console.error("Could not update ticket waiting state:", error));
 });
 
 client.login(config.token);

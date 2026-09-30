@@ -14,13 +14,14 @@ const DEFAULT_TITLE = "Open a Ticket";
 
 export interface PanelContent {
   embed: EmbedBuilder;
-  row: ActionRowBuilder<StringSelectMenuBuilder>;
+  row: ActionRowBuilder<StringSelectMenuBuilder> | null;
 }
 
 /** Builds the panel embed + ticket-type select menu; null if the guild has no ticket types yet. */
 export function buildPanelContent(guildId: string): PanelContent | null {
-  const types = getTicketTypes(guildId);
-  if (types.length === 0) return null;
+  const allTypes = getTicketTypes(guildId);
+  if (allTypes.length === 0) return null;
+  const types = allTypes.filter(type => type.enabled !== false);
 
   const settings = getGuildSettings(guildId);
   const typeList = types.map((t) => `**${t.displayName}** — ${t.optionDescription ?? t.department}`).join("\n");
@@ -34,6 +35,10 @@ export function buildPanelContent(guildId: string): PanelContent | null {
     .setColor(0x5865f2)
     .setDescription(description.slice(0, 4096));
 
+  if (!types.length) {
+    embed.setDescription("Tickets are temporarily locked. Please check back later.");
+    return {embed,row:null};
+  }
   const select = new StringSelectMenuBuilder()
     .setCustomId(TICKET_PANEL_SELECT_ID)
     .setPlaceholder("Select a ticket type...")
@@ -63,6 +68,6 @@ export async function refreshPostedPanel(client: Client, guildId: string): Promi
   const message = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
   if (!message) return false;
 
-  await message.edit({ embeds: [content.embed], components: [content.row] });
+  await message.edit({ embeds: [content.embed], components: content.row ? [content.row] : [] });
   return true;
 }

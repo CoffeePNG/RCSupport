@@ -1,3 +1,4 @@
+import { migrateStaff } from "../features/staff/schema";
 import type Database from "better-sqlite3";
 
 /** Existing schema and upgrades, in their original order. */
@@ -139,6 +140,7 @@ export function migrateDatabase(db: Database.Database): void {
   ensureColumn("guild_settings", "panel_description", "TEXT");
   ensureColumn("ticket_configs", "option_description", "TEXT");
   ensureColumn("ticket_configs", "category_id", "TEXT");
+  ensureColumn("ticket_configs", "enabled", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("ticket_configs", "questions_json", "TEXT");
   ensureColumn("ticket_configs", "application_roles_json", "TEXT");
   ensureColumn("guild_settings", "todo_panel_channel_id", "TEXT");
@@ -198,5 +200,44 @@ export function migrateDatabase(db: Database.Database): void {
 
   // Old rows stored the task text in `content`; it belongs in `title` now.
   db.exec(`UPDATE todos SET title = content, content = NULL WHERE title = '' AND content IS NOT NULL`);
+
+  db.exec(`CREATE TABLE IF NOT EXISTS ticket_close_exports (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id), transcript TEXT NOT NULL,
+    review_channel_id TEXT, review_message_id TEXT, actor_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL, delete_pending INTEGER NOT NULL DEFAULT 0,
+    delete_after INTEGER NOT NULL DEFAULT 0, last_error TEXT
+  );`);
+  db.exec(`CREATE TABLE IF NOT EXISTS ticket_config_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, type_key TEXT NOT NULL,
+    actor_id TEXT NOT NULL, action TEXT NOT NULL, before_json TEXT NOT NULL,
+    after_json TEXT NOT NULL, created_at INTEGER NOT NULL
+  );`);
+  db.exec(`CREATE TABLE IF NOT EXISTS ticket_activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER NOT NULL REFERENCES tickets(id),
+    actor_id TEXT NOT NULL, action TEXT NOT NULL, details TEXT NOT NULL, created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS ticket_reminder_config (
+    guild_id TEXT NOT NULL, type_key TEXT NOT NULL, unclaimed_minutes INTEGER NOT NULL DEFAULT 0,
+    waiting_minutes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(guild_id,type_key)
+  );
+  CREATE TABLE IF NOT EXISTS ticket_waiting (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id), party TEXT NOT NULL,
+    since INTEGER NOT NULL, reminded_at INTEGER, retry_after INTEGER NOT NULL DEFAULT 0, last_error TEXT
+  );
+  CREATE TABLE IF NOT EXISTS ticket_unclaimed_reminders (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id), reminded_at INTEGER,
+    retry_after INTEGER NOT NULL DEFAULT 0, last_error TEXT
+  );
+  CREATE TABLE IF NOT EXISTS ticket_reassignments (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id), target_type TEXT NOT NULL,
+    assignee_id TEXT, actor_id TEXT NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL,
+    last_error TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_ticket_activity_ticket ON ticket_activity(ticket_id,id);
+  CREATE INDEX IF NOT EXISTS idx_ticket_history ON tickets(guild_id,type_key,created_at);
+  `);
+  ensureColumn("ticket_reassignments", "managed_ids", "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn("ticket_unclaimed_reminders", "since", "INTEGER");
+  migrateStaff(db);
 
 }

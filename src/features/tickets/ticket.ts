@@ -4,6 +4,7 @@ export interface TicketTypeConfig {
   id: number;
   guildId: string;
   typeKey: string;
+  enabled: boolean;
   displayName: string;
   department: string;
   channelPrefix: string;
@@ -73,4 +74,8 @@ export interface Todo {
   createdAt: number;
   completedAt: number | null;
   completedBy: string | null;
+}
+
+export class TicketTypeLockedError extends Error {
+  constructor() { super("This ticket type is locked and is not accepting new tickets."); }
 }

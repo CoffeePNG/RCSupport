@@ -5,3 +5,5 @@ export const TICKET_CLAIM_PREFIX = "ticket_claim:";
 export const TICKET_CLOSE_PREFIX = "ticket_close:";
 export const TICKET_CLOSE_CONFIRM_PREFIX = "ticket_close_confirm:";
 export const TICKET_CLOSE_CANCEL_PREFIX = "ticket_close_cancel:";
+
+export const TICKET_RELEASE_PREFIX = "ticket_release:";

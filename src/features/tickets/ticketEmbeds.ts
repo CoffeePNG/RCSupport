@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import {
   TICKET_CLAIM_PREFIX,
+  TICKET_RELEASE_PREFIX,
   TICKET_CLOSE_CANCEL_PREFIX,
   TICKET_CLOSE_CONFIRM_PREFIX,
   TICKET_CLOSE_PREFIX,
@@ -20,18 +21,13 @@ function statusColor(status: Ticket["status"]): number {
   return 0x5865f2;
 }
 
-/** Sets an embed's color and adds Claimed/Closed fields to match a ticket's current status. */
+/** The inline status field is bot-owned; questionnaire fields are not inline. */
 export function applyTicketStatus(embed: EmbedBuilder, ticket: Ticket): EmbedBuilder {
   embed.setColor(statusColor(ticket.status));
-  if (ticket.status === "claimed" && ticket.claimedBy) {
-    embed.addFields({ name: "Claimed by", value: `<@${ticket.claimedBy}>` });
-  }
-  if (ticket.status === "closed") {
-    embed.addFields({
-      name: "Closed",
-      value: ticket.closedBy ? `by <@${ticket.closedBy}>` : "closed",
-    });
-  }
+  embed.setFields((embed.data.fields ?? []).filter(field => !(field.name === "Ticket status" && field.inline === true)));
+  const value = ticket.status === "claimed" && ticket.claimedBy ? `Claimed by <@${ticket.claimedBy}>`
+    : ticket.status === "closed" ? ticket.closedBy ? `Closed by <@${ticket.closedBy}>` : "Closed" : "Unclaimed";
+  embed.addFields({ name: "Ticket status", value, inline: true });
   return embed;
 }
 
@@ -55,7 +51,7 @@ export function buildTicketEmbed(
   return applyTicketStatus(embed, ticket);
 }
 
-/** Claim/Close buttons shown on a ticket's message; each disables once it no longer applies. */
+/** Claim becomes Release claim while owned; both controls disable on closure. */
 export function buildTicketButtons(
   ticketId: number,
   claimDisabled: boolean,
@@ -63,10 +59,10 @@ export function buildTicketButtons(
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${TICKET_CLAIM_PREFIX}${ticketId}`)
-      .setLabel("Claim")
+      .setCustomId(`${claimDisabled && !closeDisabled ? TICKET_RELEASE_PREFIX : TICKET_CLAIM_PREFIX}${ticketId}`)
+      .setLabel(claimDisabled && !closeDisabled ? "Release claim" : "Claim")
       .setStyle(ButtonStyle.Primary)
-      .setDisabled(claimDisabled),
+      .setDisabled(closeDisabled),
     new ButtonBuilder()
       .setCustomId(`${TICKET_CLOSE_PREFIX}${ticketId}`)
       .setLabel("Close")

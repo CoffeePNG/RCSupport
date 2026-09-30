@@ -7,6 +7,7 @@ function rowToConfig(row: any): TicketTypeConfig {
     id: row.id,
     guildId: row.guild_id,
     typeKey: row.type_key,
+    enabled: row.enabled !== 0,
     displayName: row.display_name,
     department: row.department,
     channelPrefix: row.channel_prefix,
@@ -40,7 +41,7 @@ export function getTicketTypeById(id: number): TicketTypeConfig | null {
 }
 
 export function ensureTicketType(
-  seed: Omit<TicketTypeConfig, "id" | "reviewChannelId" | "categoryId" | "questions" | "applicationRoles">
+  seed: Omit<TicketTypeConfig, "id" | "enabled" | "reviewChannelId" | "categoryId" | "questions" | "applicationRoles">
 ): TicketTypeConfig {
   const existing = getTicketType(seed.guildId, seed.typeKey);
   if (existing) return existing;
@@ -164,4 +165,47 @@ export function removeApplicationRole(guildId: string, typeKey: string, name: st
   db.prepare(`UPDATE ticket_configs SET application_roles_json = ? WHERE guild_id = ? AND type_key = ?`)
     .run(JSON.stringify(roles), guildId, typeKey);
   return true;
+}
+
+
+export interface NewTicketType { key: string; name: string; department: string; prefix: string; }
+function auditType(guildId: string, key: string, actor: string, action: string, before: unknown, after: unknown): void {
+  db.prepare(`INSERT INTO ticket_config_audit(guild_id,type_key,actor_id,action,before_json,after_json,created_at)
+    VALUES(?,?,?,?,?,?,?)`).run(guildId,key,actor,action,JSON.stringify(before),JSON.stringify(after),Date.now());
+}
+
+/** New types are drafts until a manager explicitly unlocks intake. */
+export function createCustomTicketType(guildId: string, actor: string, input: NewTicketType): TicketTypeConfig {
+  const key = input.key.trim().toLowerCase();
+  const name = input.name.trim();
+  const department = input.department.trim();
+  const prefix = input.prefix.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(key)) throw new Error("Use a type key of 1–32 lowercase letters, numbers, underscores or hyphens.");
+  if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(prefix)) throw new Error("Use a channel prefix of 1–32 lowercase letters, numbers or hyphens.");
+  if (!name || name.length > 45 || !department || department.length > 100) throw new Error("Use a name of 1–45 characters and a department of 1–100 characters.");
+  return db.transaction(() => {
+    if (getTicketType(guildId,key)) throw new Error("That type key already exists. Its configuration was not changed.");
+    if (getTicketTypes(guildId).length >= 25) throw new Error("This server already has 25 ticket types, the supported panel limit.");
+    const type = ensureTicketType({guildId,typeKey:key,displayName:name,department,channelPrefix:prefix,
+      openMessage:"Thanks {creator}. Please describe anything else we should know; a ticket lead will help you here.",
+      claimMessage:"{claimant} is now helping with this ticket.",optionDescription:null});
+    db.prepare("UPDATE ticket_configs SET enabled=0 WHERE id=?").run(type.id);
+    const created = getTicketType(guildId,key)!;
+    auditType(guildId,key,actor,"TYPE_CREATE",null,created);
+    return created;
+  })();
+}
+
+/** Intake only: existing tickets, assignments and history are preserved. */
+export function setTicketTypeEnabled(guildId: string, key: string, enabled: boolean, actor: string): TicketTypeConfig {
+  return db.transaction(() => {
+    const before = getTicketType(guildId,key);
+    if (!before) throw new Error("This ticket type no longer exists.");
+    if (before.enabled === enabled) return before;
+    if (enabled && getTicketTypes(guildId).filter(type => type.enabled).length >= 25) throw new Error("Lock another type before enabling more than 25 panel choices.");
+    db.prepare("UPDATE ticket_configs SET enabled=? WHERE guild_id=? AND type_key=?").run(Number(enabled),guildId,key);
+    const after = getTicketType(guildId,key)!;
+    auditType(guildId,key,actor,enabled ? "TYPE_UNLOCK" : "TYPE_LOCK",before,after);
+    return after;
+  })();
 }

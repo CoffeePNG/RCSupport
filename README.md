@@ -7,6 +7,8 @@ Discord tickets and staff applications, moderation, task lists, and Minecraft bu
 - [Commands, configuration, and deployment](docs/OPERATIONS.md)
 - [Setup handoff](docs/SETUP_HANDOFF.md)
 - [Source layout and cleanup guarantees](docs/ARCHITECTURE.md)
+- [Organizational staff management](docs/STAFF_MANAGEMENT.md)
+- [Ticket configuration and staff workflows](docs/TICKET_WORKFLOWS.md)
 
 ## Development
 

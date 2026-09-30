@@ -1,0 +1,13 @@
+{
+  "adminRoleIds": [],
+  "permissions": {
+    "view": [],
+    "hire": [],
+    "fire": [],
+    "assign": [],
+    "remove": [],
+    "vacancy": [],
+    "roster": []
+  },
+  "roleBindings": []
+}
