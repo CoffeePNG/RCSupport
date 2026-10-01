@@ -93,15 +93,17 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   const assignment=(id,position,senior=false)=>({id:String(id),user_id:String(id),position,senior,designation:'',effective_at:0});
   const rows=[assignment(1,'helper'),assignment(2,'community-administrator',true),assignment(3,'senior-moderator')];
   const pages=renderRoster(rows,[{id:'vacancy',position:'support-administrator',senior:false,designation:'GT',created_at:0}]);
-  const rendered=pages.join('\n');assert.match(rendered,/Sr\. Administrator • <@2>/);assert.match(rendered,/Sr\. Moderator • <@3>/);
+  const rendered=pages.join('\n');assert.match(rendered,/Administrator ★ • <@2>/);assert.match(rendered,/Sr\. Moderator • <@3>/);
   assert.equal(rendered.split('Helper •').length-1,1);assert.match(rendered,/Administrator \[GT\] • \*Vacant\*/);
-  assert.ok(!rendered.includes('> **'));assert.ok(rendered.includes('└` '));assert.ok(!rendered.includes('──'));
+  assert.ok(!rendered.includes('> **'));assert.ok(rendered.includes('└ '));assert.ok(!rendered.includes('──'));
   const nested=renderRoster([assignment(10,'moderation-administrator'),assignment(11,'senior-moderator'),assignment(12,'moderator'),assignment(13,'junior-moderator')],[]).join('\n');
-  assert.match(nested,/`│   └` Administrator • <@10>\n`│       ├` Sr\. Moderator • <@11>\n`│       ├` Moderator • <@12>\n`│       └` Jr\. Moderator • <@13>/);
+  const indent='\u00a0'.repeat(4);
+  assert.ok(nested.includes(`${indent}└ Administrator • <@10>\n${indent.repeat(2)}├ Sr. Moderator • <@11>\n${indent.repeat(2)}├ Moderator • <@12>\n${indent.repeat(2)}└ Jr. Moderator • <@13>`));
   const empty=renderRoster([],[]).join('\n');
-  assert.ok(empty.includes('`│   └` *No assignments or vacancies recorded*'));
-  assert.ok(empty.includes('`    └` *No assignments or vacancies recorded*'));
-  assert.ok([...nested.matchAll(/`([^`\n]*)`/g)].every(match => !match[1].includes('<@')));
+  assert.equal(empty.split(`${indent}└ *No assignments or vacancies recorded*`).length-1,5);
+  for(const output of [nested,empty]) {
+    assert.ok(!output.includes('│'));assert.ok(!output.includes('`'));
+  }
   const large=renderRoster(Array.from({length:200},(_,i)=>assignment(i,'moderator')),[]);
   assert.ok(large.length>1);assert.ok(large.every(page=>page.length<=1900));
   for(let i=0;i<200;i++) assert.equal(large.join('\n').split(`<@${i}>`).length-1,1);
@@ -198,14 +200,15 @@ test('published roster embeds use server-info color and clear old plain text on 
   const calls=[];
   const channel={isTextBased:()=>true,messages:{fetch:async()=>({id:'existing',edit:async payload=>calls.push(payload)})},send:async payload=>{calls.push(payload);return {id:'new'};}};
   const adapter=discordAdapter({channels:{fetch:async()=>channel}});
-  const page='**RepubliCraft Staff Roster**\n\n**Moderation Team**\n`└` Moderator • <@123>';
+  const page='**RepubliCraft Staff Roster**\n\n**Moderation Team**\n└ Moderator • <@123>';
   assert.equal(await adapter.message('channel','existing',page),'existing');
   assert.equal(await adapter.message('channel',undefined,page),'new');
   for(const payload of calls) {
     const embed=payload.embeds[0].toJSON();
     assert.equal(payload.content,'');assert.equal(embed.color,0xbd63aa);
     assert.equal(embed.title,'RepubliCraft Staff Roster');
-    assert.match(embed.description,/`└` Moderator • <@123>/);
+    assert.equal(embed.footer.text,'★ Senior Administrator');
+    assert.match(embed.description,/└ Moderator • <@123>/);
     assert.deepEqual(payload.allowedMentions.parse,[]);
   }
 });

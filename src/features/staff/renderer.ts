@@ -5,7 +5,7 @@ export function assignmentLabel(row: AssignmentInput): string {
   const position=positions.find(position => position.id === row.position);
   return `${position ? positionLabel(position) : row.position}${row.senior ? " (Senior)" : ""}${row.designation ? ` [${row.designation}]` : ""}`;
 }
-/** Monospace only tree prefixes: preserve alignment without putting mentions in code. */
+/** Plain branches with nonbreaking indentation; no code styling or vertical connectors. */
 export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): string[] {
   const lines=["**RepubliCraft Staff Roster**",""];
   for (const department of departments) {
@@ -17,7 +17,7 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
       const position=positions.find(position => position.id === id)!;
       const rows=[...assignments.filter(row => row.position === id),...vacancies.filter(row => row.position === id)]
         .sort((a,b) => Number(b.senior)-Number(a.senior) || a.id.localeCompare(b.id));
-      return rows.map(row => `${row.senior ? "Sr. " : ""}${position.title}${row.designation ? ` [${row.designation}]` : ""} • ${"user_id" in row ? `<@${row.user_id}>` : "*Vacant*"}`);
+      return rows.map(row => `${position.title}${row.senior ? " ★" : ""}${row.designation ? ` [${row.designation}]` : ""} • ${"user_id" in row ? `<@${row.user_id}>` : "*Vacant*"}`);
     };
     for (const position of departmentPositions.filter(position => !position.team)) {
       for (const title of rowsFor(position.id)) entries.push({title});
@@ -38,8 +38,8 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
     if (!entries.length) entries.push({title:"*No assignments or vacancies recorded*"});
     const renderEntries=(items:Entry[],prefix="") => items.forEach((entry,i) => {
       const last=i === items.length-1;
-      lines.push(`\`${prefix}${last ? "└" : "├"}\` ${entry.title}`);
-      if (entry.children) renderEntries(entry.children,`${prefix}${last ? "    " : "│   "}`);
+      lines.push(`${prefix}${last ? "└" : "├"} ${entry.title}`);
+      if (entry.children) renderEntries(entry.children,`${prefix}\u00a0\u00a0\u00a0\u00a0`);
     });
     renderEntries(entries);
     if (department === "Shared Support") lines.push("*Helpers support Gameplay, Public Relations, and Support.*");
@@ -58,6 +58,7 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
 export function rosterEmbed(page:string):EmbedBuilder {
   const [heading,...body]=page.split("\n");
   return new EmbedBuilder().setColor(0xbd63aa)
+    .setFooter({text:"★ Senior Administrator"})
     .setTitle(heading.replace(/^\*\*|\*\*$/g,""))
-    .setDescription(body.join("\n").trim());
+    .setDescription(body.join("\n").replace(/^\n+|\n+$/g,""));
 }
