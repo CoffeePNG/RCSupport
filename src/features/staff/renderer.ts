@@ -4,7 +4,7 @@ export function assignmentLabel(row: AssignmentInput): string {
   const position=positions.find(position => position.id === row.position);
   return `${position ? positionLabel(position) : row.position}${row.senior ? " (Senior)" : ""}${row.designation ? ` [${row.designation}]` : ""}`;
 }
-/** Stable plain Markdown with tree characters; no code block so mentions render. */
+/** Monospace only tree prefixes: preserve alignment without putting mentions in code. */
 export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): string[] {
   const lines=["**RepubliCraft Staff Roster**",""];
   for (const department of departments) {
@@ -37,7 +37,7 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
     if (!entries.length) entries.push({title:"*No assignments or vacancies recorded*"});
     const renderEntries=(items:Entry[],prefix="") => items.forEach((entry,i) => {
       const last=i === items.length-1;
-      lines.push(`${prefix}${last ? "└" : "├"} ${entry.title}`);
+      lines.push(`\`${prefix}${last ? "└" : "├"}\` ${entry.title}`);
       if (entry.children) renderEntries(entry.children,`${prefix}${last ? "    " : "│   "}`);
     });
     renderEntries(entries);
