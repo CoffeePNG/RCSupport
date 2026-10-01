@@ -23,6 +23,7 @@ export const positions: readonly Position[] = [
   { id: "moderation-administrator", department: "Community", team: "Moderation Team", title: "Administrator", seniority: true },
   { id: "senior-moderator", department: "Community", team: "Moderation Team", title: "Sr. Moderator" },
   { id: "moderator", department: "Community", team: "Moderation Team", title: "Moderator" },
+  { id: "junior-moderator", department: "Community", team: "Moderation Team", title: "Jr. Moderator" },
   { id: "public-relations-administrator", department: "Community", team: "Public Relations Team", title: "Administrator", seniority: true },
   { id: "support-administrator", department: "Community", team: "Support Team", title: "Administrator", seniority: true },
   { id: "helper", department: "Shared Support", team: null, title: "Helper" },

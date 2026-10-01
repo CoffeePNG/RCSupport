@@ -10,3 +10,6 @@ data/
 
 # macOS Finder metadata
 .DS_Store
+
+# Local project documentation
+/docs/

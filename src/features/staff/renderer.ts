@@ -9,7 +9,8 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
   const lines=["**RepubliCraft Staff Roster**",""];
   for (const department of departments) {
     lines.push(`**${department}${["Engineering","Community"].includes(department) ? " Department" : ""}**`);
-    const entries: {title:string;children?:string[]}[]=[];
+    interface Entry { title:string; children?:Entry[]; }
+    const entries: Entry[]=[];
     const departmentPositions=positions.filter(position => position.department === department);
     const rowsFor=(id:string) => {
       const position=positions.find(position => position.id === id)!;
@@ -21,15 +22,25 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
       for (const title of rowsFor(position.id)) entries.push({title});
     }
     for (const team of new Set(departmentPositions.map(position => position.team).filter(Boolean))) {
-      const children=departmentPositions.filter(position => position.team === team).flatMap(position => rowsFor(position.id));
-      entries.push({title:`**${team}**`,children:children.length ? children : ["*No assignments or vacancies recorded*"]});
+      const teamPositions=departmentPositions.filter(position => position.team === team);
+      const administrators=teamPositions.filter(position => position.seniority).flatMap(position => rowsFor(position.id));
+      const ranks=teamPositions.filter(position => !position.seniority).flatMap(position => rowsFor(position.id)).map(title => ({title}));
+      const children:Entry[]=[];
+      if (ranks.length) {
+        // A shared role heading avoids implying that only the last administrator supervises the team.
+        children.push(administrators.length === 1
+          ? {title:administrators[0],children:ranks}
+          : {title:"Administrator",children:[...administrators.map(title => ({title})),...ranks]});
+      } else children.push(...administrators.map(title => ({title})));
+      entries.push({title:`**${team}**`,children:children.length ? children : [{title:"*No assignments or vacancies recorded*"}]});
     }
     if (!entries.length) entries.push({title:"*No assignments or vacancies recorded*"});
-    entries.forEach((entry,i) => {
-      const last=i === entries.length-1;
-      lines.push(`${last ? "└──" : "├──"} ${entry.title}`);
-      entry.children?.forEach((child,j) => lines.push(`${last ? "    " : "│   "}${j === entry.children!.length-1 ? "└──" : "├──"} ${child}`));
+    const renderEntries=(items:Entry[],prefix="") => items.forEach((entry,i) => {
+      const last=i === items.length-1;
+      lines.push(`${prefix}${last ? "└" : "├"} ${entry.title}`);
+      if (entry.children) renderEntries(entry.children,`${prefix}${last ? "    " : "│   "}`);
     });
+    renderEntries(entries);
     if (department === "Shared Support") lines.push("*Helpers support Gameplay, Public Relations, and Support.*");
     lines.push("");
   }

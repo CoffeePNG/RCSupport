@@ -95,7 +95,9 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   const pages=renderRoster(rows,[{id:'vacancy',position:'support-administrator',senior:false,designation:'GT',created_at:0}]);
   const rendered=pages.join('\n');assert.match(rendered,/Sr\. Administrator • <@2>/);assert.match(rendered,/Sr\. Moderator • <@3>/);
   assert.equal(rendered.split('Helper •').length-1,1);assert.match(rendered,/Administrator \[GT\] • \*Vacant\*/);
-  assert.ok(!rendered.includes('> **'));assert.ok(rendered.includes('└──'));
+  assert.ok(!rendered.includes('> **'));assert.ok(rendered.includes('└ '));assert.ok(!rendered.includes('──'));
+  const nested=renderRoster([assignment(10,'moderation-administrator'),assignment(11,'senior-moderator'),assignment(12,'moderator'),assignment(13,'junior-moderator')],[]).join('\n');
+  assert.match(nested,/└ Administrator • <@10>\n│       ├ Sr\. Moderator • <@11>\n│       ├ Moderator • <@12>\n│       └ Jr\. Moderator • <@13>/);
   const large=renderRoster(Array.from({length:200},(_,i)=>assignment(i,'moderator')),[]);
   assert.ok(large.length>1);assert.ok(large.every(page=>page.length<=1900));
   for(let i=0;i<200;i++) assert.equal(large.join('\n').split(`<@${i}>`).length-1,1);
