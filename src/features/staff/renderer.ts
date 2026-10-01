@@ -69,7 +69,7 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[], ro
     const renderEntries=(items:Entry[],prefix="") => items.forEach((entry,i) => {
       const last=i === items.length-1;
       lines.push(`${prefix}${last ? "└" : "├"} ${entry.title}`);
-      if (entry.children) renderEntries(entry.children,`${prefix}\u00a0\u00a0\u00a0\u00a0`);
+      if (entry.children) renderEntries(entry.children,`${prefix}\u2003\u2003`);
     });
     if (manager) {
       const managers=rowsFor(manager.id);

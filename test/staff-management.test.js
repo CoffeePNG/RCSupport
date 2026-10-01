@@ -32,7 +32,6 @@ test('staff hire and assignment preserve history and atomic audit across repeat 
   const f=fixture(t),{service,repo,actor,input}=f;
   service.add(actor,'hire','alice',input);
   service.add(actor,'assign','alice',{...input,position:'helper'});
-  assert.throws(()=>service.add(actor,'hire','alice',input),/already staff/);
   assert.throws(()=>service.add(actor,'assign','bob',input),/Hire/);
   assert.throws(()=>service.add(actor,'assign','alice',input),/already exists/);
   const id=repo.assignments('alice').find(a=>a.position==='moderator').id;
@@ -103,7 +102,7 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   assert.ok(tagged.includes('<@&111111111111111111> • <@30>'));
   assert.ok(tagged.includes('<@&222222222222222222> • <@31>'));
   assert.ok(tagged.includes('<@&333333333333333333> • <@32>'));
-  const indent='\u00a0'.repeat(4);
+  const indent='\u2003'.repeat(2);
   assert.ok(nested.includes(`${indent.repeat(2)}└ <@&1555045039691014184> • <@10>\n${indent.repeat(3)}├ <@&1269507769946607616> • <@11>\n${indent.repeat(3)}├ <@&1269507771766804562> • <@12>\n${indent.repeat(3)}└ <@&1470589267465076914> • <@13>`));
   const managed=renderRoster([assignment(20,'community-manager'),assignment(21,'moderation-administrator',true)],[]).join('\n');
   assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}├ **Moderation Team**\n${indent.repeat(2)}└ ★ <@&1555045039691014184> • <@21>`));
@@ -231,4 +230,28 @@ test('published roster embeds use server-info color and clear old plain text on 
     assert.match(embed.description,/└ Moderator • <@123>/);
     assert.deepEqual(payload.allowedMentions.parse,[]);
   }
+});
+
+test('hire moves active staff atomically while assign remains additive',t=>{
+  const f=fixture(t);
+  f.service.add(f.actor,'hire','alice',f.input);
+  f.service.add(f.actor,'assign','alice',{...f.input,position:'helper'});
+  const old=f.repo.assignments('alice');
+  const moved=f.service.add(f.actor,'hire','alice',{...f.input,position:'senior-moderator'});
+  assert.deepEqual(f.repo.assignments('alice').map(a=>a.position),['senior-moderator']);
+  for(const row of old) assert.ok(f.raw.prepare('SELECT ended_at FROM staff_assignments WHERE id=?').get(row.id).ended_at);
+  assert.equal(f.repo.member('alice').status,'active');
+  const audit=f.raw.prepare("SELECT * FROM staff_audit WHERE action='STAFF_REASSIGN'").get();
+  assert.equal(JSON.parse(audit.before_json).length,2);assert.equal(JSON.parse(audit.after_json).length,1);
+  assert.equal(f.service.add(f.actor,'hire','alice',{...f.input,position:'senior-moderator'}),moved);
+  f.raw.exec("CREATE TRIGGER reject_move BEFORE INSERT ON staff_audit BEGIN SELECT RAISE(ABORT,'audit failed'); END;");
+  assert.throws(()=>f.service.add(f.actor,'hire','alice',f.input),/audit failed/);
+  assert.equal(f.repo.assignments('alice')[0].id,moved);
+});
+test('hire cannot remove existing assignments without assign and remove capabilities',t=>{
+  const f=fixture(t,{adminRoleIds:[],permissions:{hire:['hiring']},roleBindings:[]});
+  f.service.add(f.actor,'hire','alice',f.input);
+  const actor={...f.actor,permissions:0n,roleIds:['hiring']};
+  assert.throws(()=>f.service.add(actor,'hire','alice',{...f.input,position:'helper'}),/permission/);
+  assert.equal(f.repo.assignments('alice')[0].position,f.input.position);
 });

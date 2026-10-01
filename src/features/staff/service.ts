@@ -31,12 +31,22 @@ export class StaffService {
     this.authorize(actor,action); const input=validateAssignment(value);
     return this.repo.db.transaction(() => {
       const member=this.repo.member(user);
-      if (action === "hire" && member?.status === "active") throw new Error("This person is already staff. Use /staff assign.");
+
       if (action === "assign" && member?.status !== "active") throw new Error("Hire this person before assigning another position.");
       const before=this.repo.assignments(user);
-      if (action === "hire") this.activate(user);
+      if (action === "hire") {
+        if (member?.status === "active" && before.length) {
+          this.authorize(actor,"assign");
+          this.authorize(actor,"remove");
+          if (before.length === 1 && before[0].position === input.position && before[0].senior === input.senior && before[0].designation === input.designation)
+            return before[0].id;
+          this.repo.db.prepare("UPDATE staff_assignments SET ended_at=? WHERE guild_id=? AND user_id=? AND ended_at IS NULL")
+            .run(Date.now(),this.repo.guildId,user);
+        }
+        this.activate(user);
+      }
       const id=this.insert(user,input);
-      this.repo.audit(actor.userId,user,`STAFF_${action.toUpperCase()}`,before,this.repo.assignments(user),actor.source);
+      this.repo.audit(actor.userId,user,action === "hire" && member?.status === "active" ? "STAFF_REASSIGN" : `STAFF_${action.toUpperCase()}`,before,this.repo.assignments(user),actor.source);
       return id;
     })();
   }

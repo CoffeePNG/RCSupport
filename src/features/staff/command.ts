@@ -12,7 +12,7 @@ function positionOptions(sub:SlashCommandSubcommandBuilder) {
     .addStringOption(option => option.setName("designation").setDescription("Optional designation such as E or GT.").setMaxLength(16));
 }
 const data=new SlashCommandBuilder().setName("staff").setDescription("Manage organizational staff assignments and the roster.").setDMPermission(false)
-  .addSubcommand(sub => positionOptions(sub.setName("hire").setDescription("Hire a new or returning staff member.").addUserOption(option => option.setName("user").setDescription("Staff member").setRequired(true))))
+  .addSubcommand(sub => positionOptions(sub.setName("hire").setDescription("Hire someone or replace their current assignments with this position.").addUserOption(option => option.setName("user").setDescription("Staff member").setRequired(true))))
   .addSubcommand(sub => positionOptions(sub.setName("assign").setDescription("Give an active staff member another assignment.").addUserOption(option => option.setName("user").setDescription("Staff member").setRequired(true))))
   .addSubcommand(sub => sub.setName("remove").setDescription("End one assignment, retaining history.")
     .addUserOption(option => option.setName("user").setDescription("Staff member").setRequired(true))
