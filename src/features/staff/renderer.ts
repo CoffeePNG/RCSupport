@@ -79,7 +79,6 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[], ro
         : {title:rosterPositionTitle(manager),children:[...managers.map(title => ({title})),...entries]};
       renderEntries([root]);
     } else renderEntries(entries);
-    if (department === "Shared Support") lines.push("*Helpers support Gameplay, Public Relations, and Support.*");
     lines.push("");
   }
   const pages:string[]=[];let page="";
