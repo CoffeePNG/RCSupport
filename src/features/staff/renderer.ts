@@ -66,9 +66,8 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[], ro
       entries.push({title:`**${team}**`,children:children.length ? children : [{title:"*No assignments or vacancies recorded*"}]});
     }
     if (!entries.length) entries.push({title:"*No assignments or vacancies recorded*"});
-    const renderEntries=(items:Entry[],prefix="") => items.forEach((entry,i) => {
-      const last=i === items.length-1;
-      lines.push(`${prefix}${last ? "└" : "├"} ${entry.title}`);
+    const renderEntries=(items:Entry[],prefix="") => items.forEach(entry => {
+      lines.push(`${prefix}└ ${entry.title}`);
       if (entry.children) renderEntries(entry.children,`${prefix}\u2003\u2003`);
     });
     if (manager) {

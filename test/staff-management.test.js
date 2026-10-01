@@ -103,25 +103,25 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   assert.ok(tagged.includes('<@&222222222222222222> • <@31>'));
   assert.ok(tagged.includes('<@&333333333333333333> • <@32>'));
   const indent='\u2003'.repeat(2);
-  assert.ok(nested.includes(`${indent.repeat(2)}└ <@&1555045039691014184> • <@10>\n${indent.repeat(3)}├ <@&1269507769946607616> • <@11>\n${indent.repeat(3)}├ <@&1269507771766804562> • <@12>\n${indent.repeat(3)}└ <@&1470589267465076914> • <@13>`));
+  assert.ok(nested.includes(`${indent.repeat(2)}└ <@&1555045039691014184> • <@10>\n${indent.repeat(3)}└ <@&1269507769946607616> • <@11>\n${indent.repeat(3)}└ <@&1269507771766804562> • <@12>\n${indent.repeat(3)}└ <@&1470589267465076914> • <@13>`));
   const managed=renderRoster([assignment(20,'community-manager'),assignment(21,'moderation-administrator',true)],[]).join('\n');
-  assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}├ **Moderation Team**\n${indent.repeat(2)}└ ★ <@&1555045039691014184> • <@21>`));
+  assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}└ **Moderation Team**\n${indent.repeat(2)}└ ★ <@&1555045039691014184> • <@21>`));
   const empty=renderRoster([],[]).join('\n');
   assert.equal(empty.split('└ <@&1470587167221878917>').length-1,2);
   assert.ok(empty.includes('**Developer Team**'));
   assert.ok(empty.includes('**Gameplay Team**'));
   assert.ok(empty.includes('**Modeler Team**'));
   const build=renderRoster([assignment(60,'senior-builder'),assignment(61,'builder'),assignment(62,'trial-builder')],[]).join('\n');
-  assert.ok(build.includes(`${indent.repeat(3)}├ <@&1476401943747498080> • <@60>\n${indent.repeat(3)}├ <@&1470588490214543513> • <@61>\n${indent.repeat(3)}└ <@&1470593742078611698> • <@62>`));
+  assert.ok(build.includes(`${indent.repeat(3)}└ <@&1476401943747498080> • <@60>\n${indent.repeat(3)}└ <@&1470588490214543513> • <@61>\n${indent.repeat(3)}└ <@&1470593742078611698> • <@62>`));
   assert.equal(validateAssignment({position:'senior-builder',senior:false,designation:''}).position,'senior-builder');
 
   const dev=renderRoster([assignment(50,'developer-administrator'),assignment(51,'developer')],[]).join('\n');
-  assert.ok(dev.includes(`${indent}├ **Developer Team**\n${indent.repeat(2)}└ <@&1552134119717081108> • <@50>\n${indent.repeat(3)}└ <@&1470587929066864660> • <@51>`));
+  assert.ok(dev.includes(`${indent}└ **Developer Team**\n${indent.repeat(2)}└ <@&1552134119717081108> • <@50>\n${indent.repeat(3)}└ <@&1470587929066864660> • <@51>`));
   assert.ok(!managed.includes('Community Department Manager'));
   assert.ok(!managed.includes('Engineering Department Manager'));
   assert.equal(empty.split(`${indent.repeat(2)}└ *No assignments or vacancies recorded*`).length-1,7);
   for(const output of [nested,empty]) {
-    assert.ok(!output.includes('│'));assert.ok(!output.includes('`'));
+    assert.ok(!output.includes('│'));assert.ok(!output.includes('├'));assert.ok(!output.includes('`'));
   }
   const large=renderRoster(Array.from({length:200},(_,i)=>assignment(i,'moderator')),[]);
   assert.ok(large.length>1);assert.ok(large.every(page=>page.length<=1900));
