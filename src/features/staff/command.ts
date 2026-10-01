@@ -71,7 +71,7 @@ export const staffCommand:Command = {
       const actor=staffActor(interaction,`/staff ${group ? group+" " : ""}${sub}`);
       service.authorize(actor,capability(group,sub));
       if (group === "roster" && sub === "view") {
-        const pages=renderRoster(service.repo.assignments(),service.repo.vacancies());
+        const pages=renderRoster(service.repo.assignments(),service.repo.vacancies(),service.settings.rosterRoleIds);
         await interaction.editReply({embeds:[rosterEmbed(pages[0])],allowedMentions:{parse:[]}});
         for (const content of pages.slice(1)) await interaction.followUp({embeds:[rosterEmbed(content)],flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
         return;

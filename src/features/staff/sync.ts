@@ -64,7 +64,7 @@ export class StaffSynchronizer {
     const roster=this.repo.roster();
     if (roster) {
       try {
-        const pages=renderRoster(this.repo.assignments(),this.repo.vacancies());
+        const pages=renderRoster(this.repo.assignments(),this.repo.vacancies(),this.settings.rosterRoleIds);
         for (let i=0;i<pages.length;i++) {
           roster.messageIds[i]=await this.discord.message(roster.channelId,roster.messageIds[i],pages[i]);
           this.repo.saveMessages(roster.messageIds);

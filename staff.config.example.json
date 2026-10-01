@@ -1,4 +1,24 @@
 {
+  "rosterRoleIds": {
+    "engineering-manager": "1470587167221878917",
+    "community-manager": "1470587167221878917",
+    "director": "1470588590215135273",
+    "general-manager": "1470587234175680512",
+    "gameplay-administrator": "1269507765521616998",
+    "build-administrator": "1552134109088718918",
+    "developer-administrator": "1552134119717081108",
+    "public-relations-administrator": "1552134326953713756",
+    "support-administrator": "1552134357920120842",
+    "project-coordinator": "1513640023252013136",
+    "modeler-administrator": "1552134126818041917",
+    "senior-moderator": "1269507769946607616",
+    "moderator": "1269507771766804562",
+    "junior-moderator": "1470589267465076914",
+    "helper": "1470587896774918236",
+    "senior-builder": "1476401943747498080",
+    "builder": "1470588490214543513",
+    "trial-builder": "1470593742078611698"
+  },
   "adminRoleIds": [],
   "permissions": {
     "view": [],

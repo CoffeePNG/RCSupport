@@ -93,14 +93,34 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   const assignment=(id,position,senior=false)=>({id:String(id),user_id:String(id),position,senior,designation:'',effective_at:0});
   const rows=[assignment(1,'helper'),assignment(2,'community-administrator',true),assignment(3,'senior-moderator')];
   const pages=renderRoster(rows,[{id:'vacancy',position:'support-administrator',senior:false,designation:'GT',created_at:0}]);
-  const rendered=pages.join('\n');assert.match(rendered,/Administrator ★ • <@2>/);assert.match(rendered,/Sr\. Moderator • <@3>/);
-  assert.equal(rendered.split('Helper •').length-1,1);assert.match(rendered,/Administrator \[GT\] • \*Vacant\*/);
+  const rendered=pages.join('\n');assert.match(rendered,/★ Administrator • <@2>/);assert.match(rendered,/<@&1269507769946607616> • <@3>/);
+  assert.equal(rendered.split('<@&1470587896774918236> •').length-1,1);assert.ok(rendered.includes('**Helpers**'));assert.ok(!rendered.includes('Shared Support'));assert.match(rendered,/<@&1552134357920120842> \[GT\] • \*Vacant\*/);
   assert.ok(!rendered.includes('> **'));assert.ok(rendered.includes('└ '));assert.ok(!rendered.includes('──'));
   const nested=renderRoster([assignment(10,'moderation-administrator'),assignment(11,'senior-moderator'),assignment(12,'moderator'),assignment(13,'junior-moderator')],[]).join('\n');
+  const tagged=renderRoster([assignment(30,'director'),assignment(31,'general-manager'),assignment(32,'moderator')],[],
+    {director:'111111111111111111','general-manager':'222222222222222222',moderator:'333333333333333333'}).join('\n');
+  assert.ok(tagged.includes('**Executive**'));
+  assert.ok(tagged.includes('<@&111111111111111111> • <@30>'));
+  assert.ok(tagged.includes('<@&222222222222222222> • <@31>'));
+  assert.ok(tagged.includes('<@&333333333333333333> • <@32>'));
   const indent='\u00a0'.repeat(4);
-  assert.ok(nested.includes(`${indent}└ Administrator • <@10>\n${indent.repeat(2)}├ Sr. Moderator • <@11>\n${indent.repeat(2)}├ Moderator • <@12>\n${indent.repeat(2)}└ Jr. Moderator • <@13>`));
+  assert.ok(nested.includes(`${indent.repeat(2)}└ Administrator • <@10>\n${indent.repeat(3)}├ <@&1269507769946607616> • <@11>\n${indent.repeat(3)}├ <@&1269507771766804562> • <@12>\n${indent.repeat(3)}└ <@&1470589267465076914> • <@13>`));
+  const managed=renderRoster([assignment(20,'community-manager'),assignment(21,'moderation-administrator',true)],[]).join('\n');
+  assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}├ **Moderation Team**\n${indent.repeat(2)}└ ★ Administrator • <@21>`));
   const empty=renderRoster([],[]).join('\n');
-  assert.equal(empty.split(`${indent}└ *No assignments or vacancies recorded*`).length-1,5);
+  assert.equal(empty.split('└ <@&1470587167221878917>').length-1,2);
+  assert.ok(empty.includes('<@&1470587929066864660>'));
+  assert.ok(empty.includes('<@&1491575943851151450>'));
+  assert.ok(empty.includes('<@&1476402117823561790>'));
+  const build=renderRoster([assignment(60,'senior-builder'),assignment(61,'builder'),assignment(62,'trial-builder')],[]).join('\n');
+  assert.ok(build.includes(`${indent.repeat(3)}├ <@&1476401943747498080> • <@60>\n${indent.repeat(3)}├ <@&1470588490214543513> • <@61>\n${indent.repeat(3)}└ <@&1470593742078611698> • <@62>`));
+  assert.equal(validateAssignment({position:'senior-builder',senior:false,designation:''}).position,'senior-builder');
+
+  const dev=renderRoster([assignment(50,'developer-administrator')],[]).join('\n');
+  assert.ok(dev.includes(`${indent}├ <@&1470587929066864660>\n${indent.repeat(2)}└ <@&1552134119717081108> • <@50>`));
+  assert.ok(!managed.includes('Community Department Manager'));
+  assert.ok(!managed.includes('Engineering Department Manager'));
+  assert.equal(empty.split(`${indent.repeat(2)}└ *No assignments or vacancies recorded*`).length-1,7);
   for(const output of [nested,empty]) {
     assert.ok(!output.includes('│'));assert.ok(!output.includes('`'));
   }
