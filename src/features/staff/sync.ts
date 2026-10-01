@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { StaffRepository } from "./repository";
 import { StaffSettings } from "./settings";
-import { renderRoster } from "./renderer";
+import { renderRoster, rosterEmbed } from "./renderer";
 export interface StaffDiscord {
   role(guildId:string,userId:string,roleId:string,present:boolean): Promise<void>;
   message(channelId:string,id:string|undefined,content:string):Promise<string>;
@@ -22,7 +22,7 @@ export function discordAdapter(client: Client): StaffDiscord {
     async message(channelId,id,content) {
       const channel=await client.channels.fetch(channelId);
       if (!channel?.isTextBased() || !("send" in channel)) throw new Error("Roster channel is unavailable or cannot receive messages.");
-      const payload={content,allowedMentions:{parse:[] as never[]}};
+      const payload={content:"",embeds:[rosterEmbed(content)],allowedMentions:{parse:[] as never[]}};
       if (id) {
         try {const message=await channel.messages.fetch(id);await message.edit(payload);return message.id;}
         catch(error) {if (discordCode(error) !== 10008) throw error;}

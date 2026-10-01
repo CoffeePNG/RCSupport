@@ -193,3 +193,19 @@ test('invalid staff role configuration fails closed and valid mappings retain se
   fs.writeFileSync(file,JSON.stringify({adminRoleIds:[],permissions:{unknown:[]},roleBindings:[]}));assert.throws(()=>loadStaffSettings(file),/Invalid/);
   fs.writeFileSync(file,JSON.stringify({adminRoleIds:[],permissions:{},roleBindings:[{position:'senior-moderator',senior:true,guildId:'123456789012345678',roleId:'223456789012345678'}]}));assert.throws(()=>loadStaffSettings(file),/Invalid/);
 });
+test('published roster embeds use server-info color and clear old plain text on edit',async()=>{
+  const {discordAdapter}=require('../dist/features/staff/sync');
+  const calls=[];
+  const channel={isTextBased:()=>true,messages:{fetch:async()=>({id:'existing',edit:async payload=>calls.push(payload)})},send:async payload=>{calls.push(payload);return {id:'new'};}};
+  const adapter=discordAdapter({channels:{fetch:async()=>channel}});
+  const page='**RepubliCraft Staff Roster**\n\n**Moderation Team**\n`└` Moderator • <@123>';
+  assert.equal(await adapter.message('channel','existing',page),'existing');
+  assert.equal(await adapter.message('channel',undefined,page),'new');
+  for(const payload of calls) {
+    const embed=payload.embeds[0].toJSON();
+    assert.equal(payload.content,'');assert.equal(embed.color,0xbd63aa);
+    assert.equal(embed.title,'RepubliCraft Staff Roster');
+    assert.match(embed.description,/`└` Moderator • <@123>/);
+    assert.deepEqual(payload.allowedMentions.parse,[]);
+  }
+});

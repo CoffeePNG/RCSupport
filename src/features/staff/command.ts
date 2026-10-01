@@ -2,7 +2,7 @@ import { ActionRowBuilder, AutocompleteInteraction, ButtonBuilder, ButtonInterac
 import { Command } from "../../commands/types";
 import { staffModule } from "../../modules/catalog";
 import { AssignmentInput, positions, positionLabel } from "./hierarchy";
-import { assignmentLabel, renderRoster } from "./renderer";
+import { assignmentLabel, renderRoster, rosterEmbed } from "./renderer";
 import { StaffActor } from "./service";
 import { Capability } from "./settings";
 
@@ -72,8 +72,8 @@ export const staffCommand:Command = {
       service.authorize(actor,capability(group,sub));
       if (group === "roster" && sub === "view") {
         const pages=renderRoster(service.repo.assignments(),service.repo.vacancies());
-        await interaction.editReply({content:pages[0],allowedMentions:{parse:[]}});
-        for (const content of pages.slice(1)) await interaction.followUp({content,flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
+        await interaction.editReply({embeds:[rosterEmbed(pages[0])],allowedMentions:{parse:[]}});
+        for (const content of pages.slice(1)) await interaction.followUp({embeds:[rosterEmbed(content)],flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
         return;
       }
       if (group === "roster") {
@@ -99,7 +99,7 @@ export const staffCommand:Command = {
           }
           chunks.push(chunk);
           await interaction.editReply({content:chunks[0],allowedMentions:{parse:[]}});
-          for (const content of chunks.slice(1)) await interaction.followUp({content,flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
+          for (const content of chunks.slice(1)) await interaction.followUp({embeds:[rosterEmbed(content)],flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
           const buttons=new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder().setCustomId(`staff:fire:confirm:${request.id}`).setLabel("Confirm removal").setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId(`staff:fire:cancel:${request.id}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary));

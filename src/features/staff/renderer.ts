@@ -1,3 +1,4 @@
+import { EmbedBuilder } from "discord.js";
 import { departments, positions, positionLabel, AssignmentInput } from "./hierarchy";
 import { Assignment, Vacancy } from "./repository";
 export function assignmentLabel(row: AssignmentInput): string {
@@ -51,4 +52,12 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[]): s
   }
   if (page.trim()) pages.push(page.trimEnd());
   return pages;
+}
+
+/** Match the Server Information panel; each existing roster page fits one embed. */
+export function rosterEmbed(page:string):EmbedBuilder {
+  const [heading,...body]=page.split("\n");
+  return new EmbedBuilder().setColor(0xbd63aa)
+    .setTitle(heading.replace(/^\*\*|\*\*$/g,""))
+    .setDescription(body.join("\n").trim());
 }
