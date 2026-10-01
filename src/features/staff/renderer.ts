@@ -2,6 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { departments, positions, positionLabel, AssignmentInput } from "./hierarchy";
 import { Assignment, Vacancy } from "./repository";
 const defaultRosterRoleIds:Record<string,string>={
+  "moderation-administrator":"1555045039691014184",
   "developer":"1470587929066864660",
   "helper":"1470587896774918236",
   "senior-builder":"1476401943747498080",

@@ -104,9 +104,9 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   assert.ok(tagged.includes('<@&222222222222222222> • <@31>'));
   assert.ok(tagged.includes('<@&333333333333333333> • <@32>'));
   const indent='\u00a0'.repeat(4);
-  assert.ok(nested.includes(`${indent.repeat(2)}└ Administrator • <@10>\n${indent.repeat(3)}├ <@&1269507769946607616> • <@11>\n${indent.repeat(3)}├ <@&1269507771766804562> • <@12>\n${indent.repeat(3)}└ <@&1470589267465076914> • <@13>`));
+  assert.ok(nested.includes(`${indent.repeat(2)}└ <@&1555045039691014184> • <@10>\n${indent.repeat(3)}├ <@&1269507769946607616> • <@11>\n${indent.repeat(3)}├ <@&1269507771766804562> • <@12>\n${indent.repeat(3)}└ <@&1470589267465076914> • <@13>`));
   const managed=renderRoster([assignment(20,'community-manager'),assignment(21,'moderation-administrator',true)],[]).join('\n');
-  assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}├ **Moderation Team**\n${indent.repeat(2)}└ ★ Administrator • <@21>`));
+  assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}├ **Moderation Team**\n${indent.repeat(2)}└ ★ <@&1555045039691014184> • <@21>`));
   const empty=renderRoster([],[]).join('\n');
   assert.equal(empty.split('└ <@&1470587167221878917>').length-1,2);
   assert.ok(empty.includes('**Developer Team**'));
