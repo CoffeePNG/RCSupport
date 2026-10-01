@@ -109,15 +109,15 @@ test('roster renders tree, real vacancies and shared Helpers once, splitting lar
   assert.ok(managed.includes(`└ <@&1470587167221878917> • <@20>\n${indent}├ **Moderation Team**\n${indent.repeat(2)}└ ★ Administrator • <@21>`));
   const empty=renderRoster([],[]).join('\n');
   assert.equal(empty.split('└ <@&1470587167221878917>').length-1,2);
-  assert.ok(empty.includes('<@&1470587929066864660>'));
-  assert.ok(empty.includes('<@&1491575943851151450>'));
-  assert.ok(empty.includes('<@&1476402117823561790>'));
+  assert.ok(empty.includes('**Developer Team**'));
+  assert.ok(empty.includes('**Gameplay Team**'));
+  assert.ok(empty.includes('**Modeler Team**'));
   const build=renderRoster([assignment(60,'senior-builder'),assignment(61,'builder'),assignment(62,'trial-builder')],[]).join('\n');
   assert.ok(build.includes(`${indent.repeat(3)}├ <@&1476401943747498080> • <@60>\n${indent.repeat(3)}├ <@&1470588490214543513> • <@61>\n${indent.repeat(3)}└ <@&1470593742078611698> • <@62>`));
   assert.equal(validateAssignment({position:'senior-builder',senior:false,designation:''}).position,'senior-builder');
 
-  const dev=renderRoster([assignment(50,'developer-administrator')],[]).join('\n');
-  assert.ok(dev.includes(`${indent}├ <@&1470587929066864660>\n${indent.repeat(2)}└ <@&1552134119717081108> • <@50>`));
+  const dev=renderRoster([assignment(50,'developer-administrator'),assignment(51,'developer')],[]).join('\n');
+  assert.ok(dev.includes(`${indent}├ **Developer Team**\n${indent.repeat(2)}└ <@&1552134119717081108> • <@50>\n${indent.repeat(3)}└ <@&1470587929066864660> • <@51>`));
   assert.ok(!managed.includes('Community Department Manager'));
   assert.ok(!managed.includes('Engineering Department Manager'));
   assert.equal(empty.split(`${indent.repeat(2)}└ *No assignments or vacancies recorded*`).length-1,7);

@@ -2,6 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { departments, positions, positionLabel, AssignmentInput } from "./hierarchy";
 import { Assignment, Vacancy } from "./repository";
 const defaultRosterRoleIds:Record<string,string>={
+  "developer":"1470587929066864660",
   "helper":"1470587896774918236",
   "senior-builder":"1476401943747498080",
   "builder":"1470588490214543513",
@@ -24,12 +25,6 @@ const defaultRosterRoleIds:Record<string,string>={
 
   "engineering-manager":"1470587167221878917",
   "community-manager":"1470587167221878917",
-};
-
-const teamRoleIds:Record<string,string>={
-  "Modeler Team":"1476402117823561790",
-  "Developer Team":"1470587929066864660",
-  "Gameplay Team":"1491575943851151450",
 };
 
 export function assignmentLabel(row: AssignmentInput): string {
@@ -67,7 +62,7 @@ export function renderRoster(assignments: Assignment[], vacancies: Vacancy[], ro
           ? {title:administrators[0],children:ranks}
           : {title:rosterPositionTitle(teamPositions.find(position => position.seniority)!),children:[...administrators.map(title => ({title})),...ranks]});
       } else children.push(...administrators.map(title => ({title})));
-      entries.push({title:teamRoleIds[team!] ? `<@&${teamRoleIds[team!]}>` : `**${team}**`,children:children.length ? children : [{title:"*No assignments or vacancies recorded*"}]});
+      entries.push({title:`**${team}**`,children:children.length ? children : [{title:"*No assignments or vacancies recorded*"}]});
     }
     if (!entries.length) entries.push({title:"*No assignments or vacancies recorded*"});
     const renderEntries=(items:Entry[],prefix="") => items.forEach((entry,i) => {
